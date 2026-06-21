@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shiro AI · Maine Coon Companion</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="bg-animation">
+        <div class="floating-heart" style="left:5%; animation-delay:0s;">☁️</div>
+        <div class="floating-heart" style="left:15%; animation-delay:1.5s;">✨</div>
+        <div class="floating-heart" style="left:25%; animation-delay:0.8s;">🌸</div>
+        <div class="floating-heart" style="left:40%; animation-delay:2.2s;">🌿</div>
+        <div class="floating-heart" style="left:55%; animation-delay:0.3s;">🎐</div>
+        <div class="floating-heart" style="left:70%; animation-delay:1.8s;">☁️</div>
+        <div class="floating-heart" style="left:82%; animation-delay:0.6s;">💫</div>
+        <div class="floating-heart" style="left:92%; animation-delay:2.5s;">✨</div>
+    </div>
+
+    <div id="kotak-obrolan" class="sembunyi">
+        <div id="header-obrolan">
+            <span><i class="fas fa-paw"></i> Shiro AI · Companion</span>
+            <button id="tombol-tutup" class="btn-tutup"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="riwayat-pesan">
+            <div class="pesan-shiro">Halo, Shin-chan! Aku Shiro. Yuk ngobrol~ 🐱</div>
+        </div>
+        <div id="area-ketik">
+            <input type="text" id="input-pesan" placeholder="Ketik pesan untuk Shiro..." maxlength="200">
+            <button id="tombol-kirim"><i class="fas fa-paper-plane"></i></button>
+            <button id="tombol-mic" class="btn-mic"><i class="fas fa-microphone"></i></button>
+            <button id="tombol-upload" class="btn-upload" title="Kirim gambar"><i class="fas fa-image"></i></button>
+            <input type="file" id="file-input" accept="image/*" style="display:none;">
+        </div>
+        <div class="input-helper">
+            <span><span id="charCount">0</span>/200</span>
+            <span><i class="fas fa-enter"></i> Enter</span>
+        </div>
+    </div>
+
+    <div id="app-container">
+        <div id="shiro-mascot" class="mascot-ball">
+            <div class="pesan-melayang" id="bubbleIntro">Ketuk aku, Shin-chan! 💖</div>
+            <svg class="mascot-svg" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="150" cy="270" rx="70" ry="15" fill="rgba(0,0,0,0.08)" />
+                <path d="M210 180 C260 130, 270 70, 230 40 C200 15, 160 30, 170 60 C180 90, 220 100, 230 130 C240 160, 220 190, 210 180Z" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="2" />
+                <path d="M230 60 Q235 70 225 80 Q235 90 220 100 Q230 110 225 120" stroke="#E8DCCC" stroke-width="2" fill="none" />
+                <path d="M240 80 Q245 90 235 100 Q245 110 230 120" stroke="#E8DCCC" stroke-width="2" fill="none" />
+                <ellipse cx="150" cy="200" rx="70" ry="60" fill="#F5F0E8" />
+                <ellipse cx="150" cy="205" rx="60" ry="50" fill="#FAF8F5" />
+                <ellipse cx="110" cy="250" rx="18" ry="12" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="1.5" />
+                <ellipse cx="190" cy="250" rx="18" ry="12" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="1.5" />
+                <ellipse cx="110" cy="252" rx="8" ry="5" fill="#FFD1DC" opacity="0.5" />
+                <ellipse cx="190" cy="252" rx="8" ry="5" fill="#FFD1DC" opacity="0.5" />
+                <path d="M120 155 Q150 170 180 155 L175 168 Q150 178 125 168 Z" fill="#7EC8E3" />
+                <circle cx="150" cy="168" r="8" fill="#5BA3C9" />
+                <circle cx="150" cy="110" r="65" fill="#FAF8F5" />
+                <circle cx="150" cy="115" r="60" fill="#FFFFFF" />
+                <path d="M95 70 L70 20 L110 40 Z" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="2" />
+                <path d="M100 65 L80 30 L108 45 Z" fill="#FFE4E1" />
+                <path d="M75 30 Q85 25 95 35" stroke="#E8DCCC" stroke-width="1.5" fill="none" />
+                <path d="M80 40 Q90 35 100 45" stroke="#E8DCCC" stroke-width="1.5" fill="none" />
+                <path d="M205 70 L230 20 L190 40 Z" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="2" />
+                <path d="M200 65 L220 30 L192 45 Z" fill="#FFE4E1" />
+                <path d="M225 30 Q215 25 205 35" stroke="#E8DCCC" stroke-width="1.5" fill="none" />
+                <path d="M220 40 Q210 35 200 45" stroke="#E8DCCC" stroke-width="1.5" fill="none" />
+                <ellipse cx="125" cy="105" rx="16" ry="18" fill="#FFFFFF" />
+                <ellipse cx="175" cy="105" rx="16" ry="18" fill="#FFFFFF" />
+                <ellipse cx="128" cy="108" rx="10" ry="12" fill="#5B9BD5" />
+                <ellipse cx="172" cy="108" rx="10" ry="12" fill="#5B9BD5" />
+                <ellipse cx="130" cy="105" rx="6" ry="7" fill="#1A3A5C" />
+                <ellipse cx="170" cy="105" rx="6" ry="7" fill="#1A3A5C" />
+                <circle cx="134" cy="100" r="4" fill="#FFFFFF" />
+                <circle cx="166" cy="100" r="4" fill="#FFFFFF" />
+                <circle cx="128" cy="113" r="2" fill="#FFFFFF" opacity="0.6" />
+                <circle cx="172" cy="113" r="2" fill="#FFFFFF" opacity="0.6" />
+                <path d="M108 92 Q115 85 125 88" stroke="#C4A882" stroke-width="1.8" fill="none" stroke-linecap="round" />
+                <path d="M192 92 Q185 85 175 88" stroke="#C4A882" stroke-width="1.8" fill="none" stroke-linecap="round" />
+                <path d="M145 120 L155 120 L150 126 Z" fill="#FFB7C5" />
+                <path d="M140 132 Q150 140 160 132" stroke="#D4A0A0" stroke-width="2" fill="none" stroke-linecap="round" />
+                <path d="M145 132 Q150 136 155 132" stroke="#D4A0A0" stroke-width="1.5" fill="none" stroke-linecap="round" />
+                <line x1="100" y1="118" x2="65" y2="112" stroke="#D4C8B8" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="100" y1="125" x2="60" y2="126" stroke="#D4C8B8" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="200" y1="118" x2="235" y2="112" stroke="#D4C8B8" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="200" y1="125" x2="240" y2="126" stroke="#D4C8B8" stroke-width="1.5" stroke-linecap="round" />
+                <ellipse cx="105" cy="130" rx="14" ry="8" fill="#FFD1DC" opacity="0.4" />
+                <ellipse cx="195" cy="130" rx="14" ry="8" fill="#FFD1DC" opacity="0.4" />
+                <path d="M95 125 Q85 135 95 145" stroke="#E8DCCC" stroke-width="1.5" fill="none" opacity="0.5" />
+                <path d="M205 125 Q215 135 205 145" stroke="#E8DCCC" stroke-width="1.5" fill="none" opacity="0.5" />
+            </svg>
+            <div class="online-dot"></div>
+        </div>
+    </div>
+
+    <div id="status-bar" class="status-bar">
+        <span id="status-text">😊 Bahagia · Level 1 · [████████░░] 80%</span>
+    </div>
+
+    <div class="app-footer">
+        <span>© 2026 Shiro AI · with 💖 & 🐱</span>
+        <span style="margin: 0 12px; color: #8a9aa8;">|</span>
+        <a href="/about" style="color: #8a9aa8; text-decoration: none; font-size: 0.75rem;">Kredit</a>
+    </div>
+
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html> 

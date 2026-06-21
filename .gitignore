@@ -1,0 +1,35 @@
+# File sensitif
+.env
+Shiro_Sishin.db
+memori.json
+status_shiro.json
+fakta_shiro.json
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# File sementara
+tmp/
+temp/
+*.mp3
+*.wav
+*.log
+
+# Model besar (opsional)
+voice_shiro/
+voice_sishin/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Git submodule
+ez-chat-llm/.git/
