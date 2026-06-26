@@ -11,3 +11,18 @@ venv/
 voicevox_engine/
 *.gguf
 test_voicevox.wav
+# Virtual Environment
+venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# AI Models
+*.pth
+*.index
+*.safetensors
+
+# jika semua model ada di folder ini
+voice_shiro/
+voice_sishin/
