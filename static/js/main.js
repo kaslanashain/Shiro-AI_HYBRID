@@ -2,6 +2,10 @@
 // SHIRO AI - MAIN APPLICATION
 // ==========================================
 
+// ==========================================
+// SHIRO AI - MAIN APPLICATION
+// ==========================================
+
 // ----- VARIABLES -----
 var currentCharacter = 'shiro';
 var bgmIndex = 0;
@@ -257,7 +261,7 @@ function toggleBGM() {
 }
 
 // ==========================================
-// SWITCH CHARACTER
+// SWITCH CHARACTER  (sudah diperbaiki, hanya satu fungsi)
 // ==========================================
 
 function switchCharacter(char) {
@@ -273,7 +277,7 @@ function switchCharacter(char) {
     var glow = document.getElementById('avatarGlow');
 
     if (char === 'shiro') {
-        avatar.src = '/static/images/shiro.svg';
+        avatar.src = '/static/images/shiro.png';
         avatar.className = 'avatar shiro-mode';
         name.textContent = 'Shiro';
         subtitle.textContent = 'Onee-san yang manja';
@@ -287,7 +291,7 @@ function switchCharacter(char) {
         document.getElementById('sawerTitle').textContent = 'Sawer Shiro';
         document.getElementById('sawerDesc').textContent = 'Dukung Shiro dengan saweran virtual.';
     } else {
-        avatar.src = '/static/images/sishin.svg';
+        avatar.src = '/static/images/sishin.png';
         avatar.className = 'avatar sishin-mode';
         name.textContent = 'Sishin';
         subtitle.textContent = 'Adik kecil yang imut';

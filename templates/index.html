@@ -7,6 +7,61 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- ===== TAMBAHAN STYLE UNTUK CUACA ===== -->
+    <style>
+        /* Cuaca widget di header kanan */
+        .weather-widget {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            width: 100%;
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+        }
+        .weather-widget .weather-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .weather-widget .weather-row .weather-icon {
+            font-size: 16px;
+        }
+        .weather-widget .weather-row .weather-temp {
+            font-weight: 600;
+            color: #f0ecff;
+        }
+        .weather-widget .weather-row .weather-desc {
+            font-weight: 400;
+            color: #a89fcf;
+            font-size: 12px;
+        }
+        .weather-widget .weather-date {
+            font-size: 11px;
+            color: #9a91bb;
+            letter-spacing: 0.2px;
+        }
+        .weather-widget .weather-date .day-name {
+            font-weight: 500;
+            color: #b8b0d6;
+        }
+        /* Efek loading */
+        .weather-loading {
+            font-size: 11px;
+            color: #6a628a;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+    </style>
 </head>
 <body>
 <div id="app">
@@ -34,6 +89,19 @@
                 <span class="battery"><i class="fas fa-battery-three-quarters"></i> <span id="batteryDisplay">85</span>%</span>
                 <span id="timeDisplay" class="time">00:00</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
+
+                <!-- ===== TAMBAHAN: CUACA WIDGET ===== -->
+                <div class="weather-widget" id="weatherWidget">
+                    <div class="weather-row" id="weatherRow">
+                        <span class="weather-icon" id="weatherIcon">🌤️</span>
+                        <span class="weather-temp" id="weatherTemp">--°C</span>
+                        <span class="weather-desc" id="weatherDesc">memuat...</span>
+                    </div>
+                    <div class="weather-date" id="weatherDate">
+                        <span class="day-name" id="dayName">--</span>, <span id="dateFull">-- -- ----</span>
+                    </div>
+                </div>
+                <!-- ===== AKHIR TAMBAHAN ===== -->
             </div>
         </header>
 
@@ -41,13 +109,13 @@
             <div class="avatar-container">
                 <div id="avatarGlow" class="avatar-glow shiro-glow"></div>
                 <div id="avatarRing" class="avatar-ring shiro-ring"></div>
-                <img id="homeAvatar" class="avatar shiro-mode" src="{{ url_for('static', filename='images/shiro.svg') }}" alt="Avatar" title="Ketuk untuk chat">
+                <img id="homeAvatar" class="avatar shiro-mode" src="{{ url_for('static', filename='images/shiro.png') }}" alt="Avatar" title="Ketuk untuk chat">
                 <div class="switch-container">
                     <button id="btnShiro" class="switch-btn active" onclick="switchCharacter('shiro')" title="Shiro">
-                        <img src="{{ url_for('static', filename='images/shiro.svg') }}" alt="Shiro">
+                        <img src="{{ url_for('static', filename='images/shiro.png') }}" alt="Shiro">
                     </button>
                     <button id="btnSishin" class="switch-btn" onclick="switchCharacter('sishin')" title="Sishin">
-                        <img src="{{ url_for('static', filename='images/sishin.svg') }}" alt="Sishin">
+                        <img src="{{ url_for('static', filename='images/sishin.png') }}" alt="Sishin">
                     </button>
                 </div>
             </div>
@@ -186,5 +254,110 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+<!-- ===== TAMBAHAN SCRIPT CUACA (tidak mengubah main.js) ===== -->
+<script>
+    (function() {
+        'use strict';
+
+        // DOM refs untuk cuaca
+        const weatherIcon = document.getElementById('weatherIcon');
+        const weatherTemp = document.getElementById('weatherTemp');
+        const weatherDesc = document.getElementById('weatherDesc');
+        const dayNameEl = document.getElementById('dayName');
+        const dateFullEl = document.getElementById('dateFull');
+
+        const TIMEZONE = 'Asia/Jakarta';
+        const LAT = -6.2088;
+        const LON = 106.8456;
+
+        function getFormattedDate() {
+            const now = new Date();
+            const formatter = new Intl.DateTimeFormat('id-ID', {
+                timeZone: TIMEZONE,
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long',
+            });
+            const parts = formatter.formatToParts(now);
+            let weekday = '', day = '', month = '', year = '';
+            for (const p of parts) {
+                if (p.type === 'weekday') weekday = p.value;
+                if (p.type === 'day') day = p.value;
+                if (p.type === 'month') month = p.value;
+                if (p.type === 'year') year = p.value;
+            }
+            return { weekday, day, month, year };
+        }
+
+        function updateDate() {
+            const d = getFormattedDate();
+            dayNameEl.textContent = d.weekday;
+            dateFullEl.textContent = `${d.day} ${d.month} ${d.year}`;
+        }
+
+        function mapWeatherCode(code) {
+            if (code === 0) return { desc: 'Cerah', emoji: '☀️' };
+            if (code === 1) return { desc: 'Sebagian Cerah', emoji: '🌤️' };
+            if (code === 2) return { desc: 'Berawan', emoji: '⛅' };
+            if (code === 3) return { desc: 'Mendung', emoji: '☁️' };
+            if (code >= 45 && code <= 48) return { desc: 'Kabut', emoji: '🌫️' };
+            if (code >= 51 && code <= 55) return { desc: 'Gerimis', emoji: '🌦️' };
+            if (code >= 56 && code <= 57) return { desc: 'Gerimis Beku', emoji: '🌧️' };
+            if (code >= 61 && code <= 65) return { desc: 'Hujan', emoji: '🌧️' };
+            if (code >= 66 && code <= 67) return { desc: 'Hujan Beku', emoji: '🌧️' };
+            if (code >= 71 && code <= 75) return { desc: 'Salju', emoji: '❄️' };
+            if (code >= 77) return { desc: 'Butiran Salju', emoji: '❄️' };
+            if (code >= 80 && code <= 82) return { desc: 'Hujan Deras', emoji: '🌧️' };
+            if (code >= 85 && code <= 86) return { desc: 'Hujan Salju', emoji: '🌨️' };
+            if (code >= 95 && code <= 99) return { desc: 'Badai Petir', emoji: '⛈️' };
+            return { desc: 'Berawan', emoji: '☁️' };
+        }
+
+        async function fetchWeather() {
+            const url =
+                `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true&timezone=${TIMEZONE}`;
+
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+
+                const current = data.current_weather;
+                if (!current) throw new Error('No current_weather data');
+
+                const temp = Math.round(current.temperature);
+                const code = current.weathercode;
+
+                const { desc, emoji } = mapWeatherCode(code);
+
+                weatherTemp.textContent = `${temp}°C`;
+                weatherDesc.textContent = desc;
+                weatherIcon.textContent = emoji;
+
+            } catch (err) {
+                console.warn('Weather fetch error:', err);
+                weatherTemp.textContent = '--°C';
+                weatherDesc.textContent = 'tidak tersedia';
+                weatherIcon.textContent = '🌐';
+            }
+        }
+
+        function initWeather() {
+            updateDate();
+            fetchWeather();
+            setInterval(fetchWeather, 600000); // 10 menit
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initWeather);
+        } else {
+            initWeather();
+        }
+    })();
+</script>
+<!-- ===== AKHIR TAMBAHAN ===== -->
+
 </body>
 </html>
