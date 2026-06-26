@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="95" fill="#e8f4ff" stroke="#a8c8e8" stroke-width="4"/>
+  <circle cx="75" cy="85" r="12" fill="#4a90d9"/>
+  <circle cx="125" cy="85" r="12" fill="#4a90d9"/>
+  <ellipse cx="100" cy="130" rx="25" ry="15" fill="#7ec8e3"/>
+  <text x="100" y="185" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#888">Sishin</text>
+</svg>

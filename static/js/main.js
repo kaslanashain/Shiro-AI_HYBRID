@@ -206,7 +206,7 @@ function playMusic(index) {
         document.body.appendChild(newAudio);
         audio = newAudio;
     }
-    
+
     audio.src = '/static/music/' + bgmList[index];
     audio.load();
     audio.play()
@@ -221,10 +221,12 @@ function playMusic(index) {
                 items[i].classList.remove('active');
             }
             if (items[index]) items[index].classList.add('active');
+            togglePlaylist();
         })
-        .catch(function() {});
-    
-    togglePlaylist();
+        .catch(function() {
+            console.warn('BGM file missing:', bgmList[index]);
+            alert('File musik belum ada. Taruh ' + bgmList[index] + ' di folder static/music/');
+        });
 }
 
 // ==========================================
@@ -271,7 +273,7 @@ function switchCharacter(char) {
     var glow = document.getElementById('avatarGlow');
 
     if (char === 'shiro') {
-        avatar.src = '/static/images/shiro.png';
+        avatar.src = '/static/images/shiro.svg';
         avatar.className = 'avatar shiro-mode';
         name.textContent = 'Shiro';
         subtitle.textContent = 'Onee-san yang manja';
@@ -285,7 +287,7 @@ function switchCharacter(char) {
         document.getElementById('sawerTitle').textContent = 'Sawer Shiro';
         document.getElementById('sawerDesc').textContent = 'Dukung Shiro dengan saweran virtual.';
     } else {
-        avatar.src = '/static/images/sishin.png';
+        avatar.src = '/static/images/sishin.svg';
         avatar.className = 'avatar sishin-mode';
         name.textContent = 'Sishin';
         subtitle.textContent = 'Adik kecil yang imut';
@@ -301,6 +303,8 @@ function switchCharacter(char) {
     }
 
     currentCharacter = char;
+    var chatName = document.getElementById('chatCharName');
+    if (chatName) chatName.textContent = char === 'shiro' ? 'Shiro' : 'Sishin';
     console.log('Switched to:', char);
 }
 
@@ -343,12 +347,29 @@ setInterval(updateStatus, 15000);
 function openChat() {
     document.getElementById('homeScreen').style.display = 'none';
     document.getElementById('chatScreen').style.display = 'flex';
+    var fab = document.getElementById('fabChat');
+    if (fab) fab.style.display = 'none';
+    var chatName = document.getElementById('chatCharName');
+    if (chatName) {
+        chatName.textContent = currentCharacter === 'shiro' ? 'Shiro' : 'Sishin';
+    }
+    var chatBox = document.getElementById('chatBox');
+    if (chatBox && chatBox.children.length === 0) {
+        addMessage(
+            currentCharacter === 'shiro'
+                ? 'Halo Sayang! Yuk ngobrol~'
+                : 'Kak! Sishin siap main bareng!',
+            currentCharacter
+        );
+    }
     document.getElementById('userInput').focus();
 }
 
 function closeChat() {
     document.getElementById('homeScreen').style.display = 'flex';
     document.getElementById('chatScreen').style.display = 'none';
+    var fab = document.getElementById('fabChat');
+    if (fab) fab.style.display = 'flex';
     updateStatus();
 }
 
@@ -403,7 +424,7 @@ async function sendMessage() {
         var response = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message })
+            body: JSON.stringify({ message: message, karakter: karakter })
         });
 
         var data = await response.json();
@@ -415,7 +436,7 @@ async function sendMessage() {
         var ttsResponse = await fetch('/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: reply, karakter: detectedChar })
+            body: JSON.stringify({ text: data.suara || reply, karakter: detectedChar })
         });
 
         if (ttsResponse.ok) {
@@ -489,9 +510,27 @@ async function uploadImage() {
             body: formData
         });
         var data = await response.json();
-        alert('Foto berhasil dikirim untuk ' + (currentCharacter === 'shiro' ? 'Shiro' : 'Sishin') + '!');
         closeCamera();
-        if (data.reply) addMessage(data.reply, currentCharacter);
+        if (data.reply) {
+            openChat();
+            addMessage(data.reply, data.karakter || currentCharacter);
+            var ttsResponse = await fetch('/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: data.suara || data.reply,
+                    karakter: data.karakter || currentCharacter
+                })
+            });
+            if (ttsResponse.ok) {
+                var blob = await ttsResponse.blob();
+                var url = URL.createObjectURL(blob);
+                var audio = new Audio(url);
+                audio.play();
+                audio.onended = function() { URL.revokeObjectURL(url); };
+            }
+        }
+        alert('Foto berhasil dikirim!');
     } catch (error) {
         alert('Gagal mengirim foto.');
         console.error('Upload error:', error);
@@ -518,57 +557,93 @@ async function toggleRecording() {
     var text = document.getElementById('voiceText');
 
     if (!isRecording) {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert('Browser tidak mendukung fitur suara. Gunakan Chrome atau Edge.');
+            return;
+        }
         try {
-            var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
+            var recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'id-ID';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            isRecording = true;
+            button.innerHTML = '<i class="fas fa-stop"></i> Mendengarkan...';
+            button.classList.add('recording');
+            text.textContent = 'Mendengarkan... bicara sekarang.';
 
-            mediaRecorder.ondataavailable = function(event) {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = async function() {
-                var audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                var formData = new FormData();
-                formData.append('audio', audioBlob);
-                formData.append('karakter', currentCharacter);
-
+            recognition.onresult = async function(event) {
+                var transcript = event.results[0][0].transcript;
+                text.textContent = 'Kamu bilang: "' + transcript + '"';
                 try {
                     var response = await fetch('/voice', {
                         method: 'POST',
-                        body: formData
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: transcript, karakter: currentCharacter })
                     });
                     var data = await response.json();
-                    if (data.text) {
-                        text.textContent = data.text;
-                        if (data.reply) addMessage(data.reply, currentCharacter);
+                    if (data.reply) {
+                        openChat();
+                        addMessage(transcript, 'user');
+                        addMessage(data.reply, data.karakter || currentCharacter);
+                        var ttsResponse = await fetch('/tts', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                text: data.suara || data.reply,
+                                karakter: data.karakter || currentCharacter
+                            })
+                        });
+                        if (ttsResponse.ok) {
+                            var blob = await ttsResponse.blob();
+                            var url = URL.createObjectURL(blob);
+                            var audio = new Audio(url);
+                            audio.play();
+                            audio.onended = function() { URL.revokeObjectURL(url); };
+                        }
                     }
                 } catch (error) {
-                    console.error('Voice upload error:', error);
+                    console.error('Voice chat error:', error);
+                    text.textContent = 'Gagal mengirim suara.';
+                }
+                isRecording = false;
+                button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
+                button.classList.remove('recording');
+            };
+
+            recognition.onerror = function(event) {
+                console.error('Speech error:', event.error);
+                if (event.error === 'not-allowed') {
+                    alert('Akses mikrofon ditolak.');
+                }
+                isRecording = false;
+                button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
+                button.classList.remove('recording');
+                text.textContent = 'Tekan tombol untuk mulai bicara.';
+            };
+
+            recognition.onend = function() {
+                if (isRecording) {
+                    isRecording = false;
+                    button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
+                    button.classList.remove('recording');
                 }
             };
 
-            mediaRecorder.start();
-            isRecording = true;
-            button.innerHTML = '<i class="fas fa-stop"></i> Berhenti';
-            button.classList.add('recording');
-            text.textContent = 'Mendengarkan... klik berhenti untuk mengirim.';
+            window._recognition = recognition;
+            recognition.start();
         } catch (error) {
-            alert('Akses mikrofon ditolak.');
+            alert('Gagal memulai rekaman suara.');
             console.error('Microphone error:', error);
         }
     } else {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-            mediaRecorder.stream.getTracks().forEach(function(track) { track.stop(); });
+        if (window._recognition) {
+            try { window._recognition.stop(); } catch (e) {}
+            delete window._recognition;
         }
         isRecording = false;
         button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
         button.classList.remove('recording');
-        text.textContent = 'Suara terkirim.';
-        setTimeout(function() {
-            text.textContent = 'Tekan tombol untuk mulai bicara.';
-        }, 2000);
+        text.textContent = 'Tekan tombol untuk mulai bicara.';
     }
 }
 
@@ -665,46 +740,7 @@ function showMemori() {
 // ==========================================
 
 document.getElementById('homeAvatar')?.addEventListener('click', function() {
-    var charName = currentCharacter === 'shiro' ? 'Shiro' : 'Sishin';
-    var messages = currentCharacter === 'shiro' ? [
-        'Ehehe~ Sayang!',
-        'Aku kangen banget sama kamu!',
-        'Kamu mau main bareng aku?',
-        'Jangan tinggalin aku ya!'
-    ] : [
-        'Kak! Ayo main yuk!',
-        'Sishin senang banget!',
-        'Kakak perhatian banget!',
-        'Yay! Main bareng!'
-    ];
-    var text = messages[Math.floor(Math.random() * messages.length)];
-
-    var chatBox = document.getElementById('chatBox');
-    if (chatBox) {
-        var messageDiv = document.createElement('div');
-        messageDiv.className = 'msg msg-' + currentCharacter;
-        var bubble = document.createElement('div');
-        bubble.className = 'msg-bubble';
-        bubble.textContent = text;
-        messageDiv.appendChild(bubble);
-        chatBox.appendChild(messageDiv);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    fetch('/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text, karakter: currentCharacter })
-    })
-    .then(function(response) { return response.blob(); })
-    .then(function(blob) {
-        var url = URL.createObjectURL(blob);
-        var audio = new Audio(url);
-        audio.play();
-    })
-    .catch(function(error) {
-        console.error('TTS error:', error);
-    });
+    openChat();
 });
 
 // ==========================================
@@ -733,10 +769,6 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         setTheme('night');
     }
-    
-    setTimeout(function() {
-        playMusic(0);
-    }, 500);
 });
 
 console.log('Shiro AI initialized.');

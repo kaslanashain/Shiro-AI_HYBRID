@@ -1,0 +1,12 @@
+flask>=3.0.0
+python-dotenv>=1.0.0
+ollama>=0.4.0
+google-generativeai>=0.8.0
+edge-tts>=6.1.0
+requests>=2.31.0
+Pillow>=10.0.0
+
+# Optional: local transformers stack (modules/llm.py, modules/emotion.py)
+# torch
+# transformers
+# bitsandbytes

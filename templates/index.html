@@ -3,108 +3,188 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shiro AI · Maine Coon Companion</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Shiro AI · Companion</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="bg-animation">
-        <div class="floating-heart" style="left:5%; animation-delay:0s;">☁️</div>
-        <div class="floating-heart" style="left:15%; animation-delay:1.5s;">✨</div>
-        <div class="floating-heart" style="left:25%; animation-delay:0.8s;">🌸</div>
-        <div class="floating-heart" style="left:40%; animation-delay:2.2s;">🌿</div>
-        <div class="floating-heart" style="left:55%; animation-delay:0.3s;">🎐</div>
-        <div class="floating-heart" style="left:70%; animation-delay:1.8s;">☁️</div>
-        <div class="floating-heart" style="left:82%; animation-delay:0.6s;">💫</div>
-        <div class="floating-heart" style="left:92%; animation-delay:2.5s;">✨</div>
+<div id="app">
+    <div class="bg-anime">
+        <div id="bgLayer" class="bg-layer night"></div>
+        <div class="bg-particles"></div>
+        <div class="bg-overlay"></div>
+        <div id="sunRay" class="sun-ray"></div>
+        <div id="glintEffect" class="glint-container"></div>
+        <div id="sunsetGlow" class="sunset-glow"></div>
+        <div id="sakuraEffect" class="sakura-effect"></div>
+        <div id="leafEffect" class="leaf-effect"></div>
+        <div id="snowEffect" class="snow-effect"></div>
+        <div id="heatHaze" class="heat-haze"></div>
+        <div id="bgRain" class="bg-rain"></div>
     </div>
 
-    <div id="kotak-obrolan" class="sembunyi">
-        <div id="header-obrolan">
-            <span><i class="fas fa-paw"></i> Shiro AI · Companion</span>
-            <button id="tombol-tutup" class="btn-tutup"><i class="fas fa-times"></i></button>
+    <div id="homeScreen" class="home-screen">
+        <header class="header">
+            <div>
+                <div id="greetingText" class="greeting">Selamat Malam</div>
+                <div class="user-name">Kakak Shin</div>
+            </div>
+            <div class="header-right">
+                <span class="battery"><i class="fas fa-battery-three-quarters"></i> <span id="batteryDisplay">85</span>%</span>
+                <span id="timeDisplay" class="time">00:00</span>
+                <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
+            </div>
+        </header>
+
+        <section class="character-section">
+            <div class="avatar-container">
+                <div id="avatarGlow" class="avatar-glow shiro-glow"></div>
+                <div id="avatarRing" class="avatar-ring shiro-ring"></div>
+                <img id="homeAvatar" class="avatar shiro-mode" src="{{ url_for('static', filename='images/shiro.svg') }}" alt="Avatar" title="Ketuk untuk chat">
+                <div class="switch-container">
+                    <button id="btnShiro" class="switch-btn active" onclick="switchCharacter('shiro')" title="Shiro">
+                        <img src="{{ url_for('static', filename='images/shiro.svg') }}" alt="Shiro">
+                    </button>
+                    <button id="btnSishin" class="switch-btn" onclick="switchCharacter('sishin')" title="Sishin">
+                        <img src="{{ url_for('static', filename='images/sishin.svg') }}" alt="Sishin">
+                    </button>
+                </div>
+            </div>
+
+            <h1 id="homeCharName" class="char-name">Shiro</h1>
+            <p id="homeCharSub" class="char-title">Onee-san yang manja</p>
+
+            <div class="status-row">
+                <div class="status-item"><i class="fas fa-heart"></i> Afeksi <span id="affectionDisplay">50</span>%</div>
+                <div class="status-item"><i class="fas fa-star"></i> Lv. <span id="levelDisplay">1</span></div>
+            </div>
+
+            <div class="hp-section">
+                <div class="hp-track">
+                    <div id="hpBar" class="hp-fill" style="width:50%"><div class="hp-shine"></div></div>
+                </div>
+                <span class="hp-label">AFeksi <span id="hpPercent">50</span>%</span>
+            </div>
+
+            <div class="quote-box">
+                <i class="fas fa-quote-left"></i>
+                <span class="quote-text">Hari ini akan indah, seperti senyummu.</span>
+            </div>
+        </section>
+
+        <div class="action-grid">
+            <button class="action-btn primary chat-cta" onclick="openChat()"><i class="fas fa-comment"></i><span>Chat</span></button>
+            <button class="action-btn" onclick="openCamera()"><i class="fas fa-camera"></i><span>Foto</span></button>
+            <button class="action-btn" onclick="startVoice()"><i class="fas fa-microphone"></i><span>Suara</span></button>
+            <button class="action-btn" onclick="openSawer()"><i class="fas fa-gift"></i><span>Sawer</span></button>
+            <button class="action-btn" onclick="toggleThemeMenu()"><i class="fas fa-palette"></i><span>Tema</span></button>
+            <button class="action-btn" onclick="showMemori()"><i class="fas fa-brain"></i><span>Memori</span></button>
         </div>
-        <div id="riwayat-pesan">
-            <div class="pesan-shiro">Halo, Shin-chan! Aku Shiro. Yuk ngobrol~ 🐱</div>
+
+        <div id="themeMenu" class="theme-menu">
+            <button class="theme-option" onclick="setTheme('morning')">Pagi</button>
+            <button class="theme-option" onclick="setTheme('afternoon')">Siang</button>
+            <button class="theme-option" onclick="setTheme('evening')">Sore</button>
+            <button class="theme-option active" onclick="setTheme('night')">Malam</button>
+            <button class="theme-option" onclick="setTheme('spring')">Semi</button>
+            <button class="theme-option" onclick="setTheme('summer')">Panas</button>
+            <button class="theme-option" onclick="setTheme('autumn')">Gugur</button>
+            <button class="theme-option" onclick="setTheme('winter')">Salju</button>
+            <button class="theme-option" onclick="setTheme('rain')">Hujan</button>
         </div>
-        <div id="area-ketik">
-            <input type="text" id="input-pesan" placeholder="Ketik pesan untuk Shiro..." maxlength="200">
-            <button id="tombol-kirim"><i class="fas fa-paper-plane"></i></button>
-            <button id="tombol-mic" class="btn-mic"><i class="fas fa-microphone"></i></button>
-            <button id="tombol-upload" class="btn-upload" title="Kirim gambar"><i class="fas fa-image"></i></button>
-            <input type="file" id="file-input" accept="image/*" style="display:none;">
+
+        <div id="playlistMenu" class="playlist-menu">
+            <div class="playlist-header">
+                <span>Playlist BGM</span>
+                <button onclick="togglePlaylist()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="playlist-item" onclick="playMusic(0)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Santai</span></div>
+            <div class="playlist-item" onclick="playMusic(1)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Ceria</span></div>
+            <div class="playlist-item" onclick="playMusic(2)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Romantis</span></div>
+            <div class="playlist-item" onclick="playMusic(3)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Semangat</span></div>
+            <div class="playlist-item" onclick="playMusic(4)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Malam</span></div>
         </div>
-        <div class="input-helper">
-            <span><span id="charCount">0</span>/200</span>
-            <span><i class="fas fa-enter"></i> Enter</span>
+
+        <div class="bgm-control">
+            <button id="bgmBtn" onclick="toggleBGM()" title="BGM"><i class="fas fa-play"></i></button>
+            <button onclick="togglePlaylist()" style="margin-left:8px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,0.02);color:rgba(255,255,255,0.2);cursor:pointer;"><i class="fas fa-list"></i></button>
         </div>
     </div>
 
-    <div id="app-container">
-        <div id="shiro-mascot" class="mascot-ball">
-            <div class="pesan-melayang" id="bubbleIntro">Ketuk aku, Shin-chan! 💖</div>
-            <svg class="mascot-svg" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
-                <ellipse cx="150" cy="270" rx="70" ry="15" fill="rgba(0,0,0,0.08)" />
-                <path d="M210 180 C260 130, 270 70, 230 40 C200 15, 160 30, 170 60 C180 90, 220 100, 230 130 C240 160, 220 190, 210 180Z" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="2" />
-                <path d="M230 60 Q235 70 225 80 Q235 90 220 100 Q230 110 225 120" stroke="#E8DCCC" stroke-width="2" fill="none" />
-                <path d="M240 80 Q245 90 235 100 Q245 110 230 120" stroke="#E8DCCC" stroke-width="2" fill="none" />
-                <ellipse cx="150" cy="200" rx="70" ry="60" fill="#F5F0E8" />
-                <ellipse cx="150" cy="205" rx="60" ry="50" fill="#FAF8F5" />
-                <ellipse cx="110" cy="250" rx="18" ry="12" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="1.5" />
-                <ellipse cx="190" cy="250" rx="18" ry="12" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="1.5" />
-                <ellipse cx="110" cy="252" rx="8" ry="5" fill="#FFD1DC" opacity="0.5" />
-                <ellipse cx="190" cy="252" rx="8" ry="5" fill="#FFD1DC" opacity="0.5" />
-                <path d="M120 155 Q150 170 180 155 L175 168 Q150 178 125 168 Z" fill="#7EC8E3" />
-                <circle cx="150" cy="168" r="8" fill="#5BA3C9" />
-                <circle cx="150" cy="110" r="65" fill="#FAF8F5" />
-                <circle cx="150" cy="115" r="60" fill="#FFFFFF" />
-                <path d="M95 70 L70 20 L110 40 Z" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="2" />
-                <path d="M100 65 L80 30 L108 45 Z" fill="#FFE4E1" />
-                <path d="M75 30 Q85 25 95 35" stroke="#E8DCCC" stroke-width="1.5" fill="none" />
-                <path d="M80 40 Q90 35 100 45" stroke="#E8DCCC" stroke-width="1.5" fill="none" />
-                <path d="M205 70 L230 20 L190 40 Z" fill="#F5F0E8" stroke="#E8DCCC" stroke-width="2" />
-                <path d="M200 65 L220 30 L192 45 Z" fill="#FFE4E1" />
-                <path d="M225 30 Q215 25 205 35" stroke="#E8DCCC" stroke-width="1.5" fill="none" />
-                <path d="M220 40 Q210 35 200 45" stroke="#E8DCCC" stroke-width="1.5" fill="none" />
-                <ellipse cx="125" cy="105" rx="16" ry="18" fill="#FFFFFF" />
-                <ellipse cx="175" cy="105" rx="16" ry="18" fill="#FFFFFF" />
-                <ellipse cx="128" cy="108" rx="10" ry="12" fill="#5B9BD5" />
-                <ellipse cx="172" cy="108" rx="10" ry="12" fill="#5B9BD5" />
-                <ellipse cx="130" cy="105" rx="6" ry="7" fill="#1A3A5C" />
-                <ellipse cx="170" cy="105" rx="6" ry="7" fill="#1A3A5C" />
-                <circle cx="134" cy="100" r="4" fill="#FFFFFF" />
-                <circle cx="166" cy="100" r="4" fill="#FFFFFF" />
-                <circle cx="128" cy="113" r="2" fill="#FFFFFF" opacity="0.6" />
-                <circle cx="172" cy="113" r="2" fill="#FFFFFF" opacity="0.6" />
-                <path d="M108 92 Q115 85 125 88" stroke="#C4A882" stroke-width="1.8" fill="none" stroke-linecap="round" />
-                <path d="M192 92 Q185 85 175 88" stroke="#C4A882" stroke-width="1.8" fill="none" stroke-linecap="round" />
-                <path d="M145 120 L155 120 L150 126 Z" fill="#FFB7C5" />
-                <path d="M140 132 Q150 140 160 132" stroke="#D4A0A0" stroke-width="2" fill="none" stroke-linecap="round" />
-                <path d="M145 132 Q150 136 155 132" stroke="#D4A0A0" stroke-width="1.5" fill="none" stroke-linecap="round" />
-                <line x1="100" y1="118" x2="65" y2="112" stroke="#D4C8B8" stroke-width="1.5" stroke-linecap="round" />
-                <line x1="100" y1="125" x2="60" y2="126" stroke="#D4C8B8" stroke-width="1.5" stroke-linecap="round" />
-                <line x1="200" y1="118" x2="235" y2="112" stroke="#D4C8B8" stroke-width="1.5" stroke-linecap="round" />
-                <line x1="200" y1="125" x2="240" y2="126" stroke="#D4C8B8" stroke-width="1.5" stroke-linecap="round" />
-                <ellipse cx="105" cy="130" rx="14" ry="8" fill="#FFD1DC" opacity="0.4" />
-                <ellipse cx="195" cy="130" rx="14" ry="8" fill="#FFD1DC" opacity="0.4" />
-                <path d="M95 125 Q85 135 95 145" stroke="#E8DCCC" stroke-width="1.5" fill="none" opacity="0.5" />
-                <path d="M205 125 Q215 135 205 145" stroke="#E8DCCC" stroke-width="1.5" fill="none" opacity="0.5" />
-            </svg>
-            <div class="online-dot"></div>
+    <div id="chatScreen" class="chat-screen">
+        <div class="chat-header">
+            <button class="back-btn" onclick="closeChat()"><i class="fas fa-arrow-left"></i></button>
+            <span id="chatCharName" class="chat-char-name">Shiro</span>
+            <span id="chatCharStatus" class="chat-char-status">Afeksi 50%</span>
+        </div>
+        <div id="chatBox" class="messages"></div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Ketik pesan..." maxlength="200" autocomplete="off">
+            <button id="sendBtn" class="input-btn" title="Kirim"><i class="fas fa-paper-plane"></i></button>
         </div>
     </div>
 
-    <div id="status-bar" class="status-bar">
-        <span id="status-text">😊 Bahagia · Level 1 · [████████░░] 80%</span>
+    <div id="cameraModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="cameraTitle">Kirim Foto</span>
+                <button onclick="closeCamera()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="file" id="imageUpload" accept="image/*">
+                <div id="imagePreview"></div>
+                <button class="upload-btn" onclick="uploadImage()">Kirim ke Shiro</button>
+            </div>
+        </div>
     </div>
 
-    <div class="app-footer">
-        <span>© 2026 Shiro AI · with 💖 & 🐱</span>
-        <span style="margin: 0 12px; color: #8a9aa8;">|</span>
-        <a href="/about" style="color: #8a9aa8; text-decoration: none; font-size: 0.75rem;">Kredit</a>
+    <div id="voiceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="voiceTitle">Rekam Suara</span>
+                <button onclick="closeVoice()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="voice-visualizer"><p id="voiceText" class="voice-text">Tekan tombol untuk mulai bicara.</p></div>
+                <button id="recordBtn" class="record-btn" onclick="toggleRecording()"><i class="fas fa-microphone"></i> Mulai Rekam</button>
+            </div>
+        </div>
     </div>
 
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
+    <div id="sawerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="sawerTitle">Sawer</span>
+                <button onclick="closeSawer()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="sawerDesc" style="color:rgba(255,255,255,0.3);font-size:0.8rem;margin-bottom:8px;">Dukung dengan saweran virtual.</p>
+                <div class="sawer-grid">
+                    <button class="sawer-btn" onclick="sawer(100)">Rp 100</button>
+                    <button class="sawer-btn" onclick="sawer(500)">Rp 500</button>
+                    <button class="sawer-btn" onclick="sawer(1000)">Rp 1.000</button>
+                    <button class="sawer-btn" onclick="sawer(5000)">Rp 5.000</button>
+                </div>
+                <div class="sawer-custom">
+                    <input type="number" id="sawerCustom" placeholder="Nominal lain..." min="100">
+                    <button class="sawer-btn" onclick="sawerCustom()">Kirim</button>
+                </div>
+                <p id="sawerMessage" style="margin-top:12px;font-size:0.85rem;"></p>
+            </div>
+        </div>
+    </div>
+
+    <button id="fabChat" class="fab-chat" onclick="openChat()" title="Buka Chat">
+        <i class="fas fa-comment-dots"></i>
+        <span>Chat</span>
+    </button>
+
+    <footer class="app-footer">
+        <a href="/about" style="color:rgba(255,255,255,0.2);text-decoration:none;">Kredit</a>
+    </footer>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
-</html> 
+</html>

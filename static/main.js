@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: teks })
+                body: JSON.stringify({ message: teks, karakter: 'shiro' })
             });
             const data = await response.json();
             const loading = document.getElementById('loading-indicator');

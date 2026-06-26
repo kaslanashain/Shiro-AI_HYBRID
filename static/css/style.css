@@ -22,6 +22,8 @@ html, body {
     position: relative;
     overflow: hidden;
     background: #0a0a1a;
+    display: flex;
+    flex-direction: column;
 }
 
 /* ==========================================
@@ -353,10 +355,11 @@ html, body {
 
 .avatar-container {
     position: relative;
-    width: 160px;
-    height: 160px;
-    margin: 0 auto 12px;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto 8px;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .avatar {
@@ -458,7 +461,7 @@ html, body {
 
 .switch-container {
     position: absolute;
-    bottom: -10px;
+    bottom: -8px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -469,6 +472,7 @@ html, body {
     border-radius: 30px;
     border: 1px solid rgba(255, 255, 255, 0.04);
     z-index: 10;
+    white-space: nowrap;
 }
 
 .switch-btn {
@@ -535,10 +539,13 @@ html, body {
     position: relative;
     z-index: 2;
     width: 100%;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 16px 18px 20px;
+    padding: 12px 18px 72px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .header {
@@ -587,11 +594,12 @@ html, body {
 }
 
 .character-section {
-    flex: 1;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    padding-top: 4px;
 }
 
 .char-name {
@@ -703,7 +711,55 @@ html, body {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
-    padding: 4px 0;
+    padding: 8px 0 4px;
+    flex-shrink: 0;
+    margin-top: auto;
+}
+
+.action-btn.chat-cta {
+    box-shadow: 0 0 20px rgba(255, 107, 138, 0.15);
+}
+
+.fab-chat {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff6b8a, #9b7bb5);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(255, 107, 138, 0.35);
+}
+
+.fab-chat i {
+    font-size: 1rem;
+}
+
+.app-footer {
+    position: fixed;
+    bottom: 4px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    z-index: 4;
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.15);
+    pointer-events: none;
+}
+
+.app-footer a {
+    pointer-events: auto;
+    color: rgba(255, 255, 255, 0.2);
+    text-decoration: none;
 }
 
 .action-btn {
@@ -792,10 +848,10 @@ html, body {
 }
 
 .bgm-control {
-    position: absolute;
-    bottom: 20px;
-    right: 18px;
-    z-index: 10;
+    position: fixed;
+    bottom: 18px;
+    left: 18px;
+    z-index: 50;
 }
 
 .bgm-control button {
@@ -988,6 +1044,12 @@ html, body {
     background: linear-gradient(145deg, rgba(255, 107, 138, 0.05), rgba(155, 123, 181, 0.02));
     color: #f0e8ff;
     border: 1px solid rgba(255, 182, 193, 0.02);
+}
+
+.msg-sishin .msg-bubble {
+    background: linear-gradient(145deg, rgba(123, 181, 255, 0.08), rgba(81, 123, 181, 0.04));
+    color: #e8f4ff;
+    border: 1px solid rgba(123, 181, 255, 0.08);
 }
 
 .msg-bubble {
@@ -1242,6 +1304,18 @@ html, body {
 }
 
 @media (max-width: 430px) {
+    .fab-chat {
+        right: 12px;
+        bottom: 12px;
+        padding: 10px 14px;
+        font-size: 0.8rem;
+    }
+
+    .bgm-control {
+        left: 12px;
+        bottom: 12px;
+    }
+
     .avatar-container {
         width: 130px;
         height: 130px;
