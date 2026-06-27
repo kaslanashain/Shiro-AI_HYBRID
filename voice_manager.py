@@ -1,16 +1,12 @@
-# voice_manager.py
-# VOICEVOX: Shiro (Tohoku Zunko) ID 107, Sishin (Kasukabe Tsumugi) ID 8
-
+# voice_manager.py (tanpa VITS)
 import asyncio
 import logging
 import os
 import uuid
-
 import edge_tts
 import requests
 
 logger = logging.getLogger(__name__)
-
 
 class VoiceManager:
     def __init__(self, temp_dir="tmp", voicevox_url="http://localhost:50021"):
@@ -49,11 +45,13 @@ class VoiceManager:
         return any(keyword in text_lower for keyword in self.romaji_keywords)
 
     async def generate(self, text, karakter="shiro", bahasa="id"):
-        if self._detect_japanese(text):
+        if self._detect_japanese(text) or self.voicevox_available:
             if self.voicevox_available:
-                return await self._generate_voicevox(text, karakter)
-            return await self._generate_edge_tts(text, "jp")
-        return await self._generate_edge_tts(text, "id")
+                try:
+                    return await self._generate_voicevox(text, karakter)
+                except Exception:
+                    logger.exception("Voicevox failed, fallback Edge TTS")
+        return await self._generate_edge_tts(text, "jp" if self._detect_japanese(text) else "id")
 
     def _voicevox_query(self, text, speaker, params):
         query_url = f"{self.voicevox_url}/audio_query"

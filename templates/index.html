@@ -8,9 +8,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
 
-    <!-- ===== TAMBAHAN STYLE UNTUK CUACA ===== -->
+    <!-- ===== TAMBAHAN STYLE CUACA & KURSOR ===== -->
     <style>
-        /* Cuaca widget di header kanan */
+        /* Cuaca */
         .weather-widget {
             display: flex;
             flex-direction: column;
@@ -51,7 +51,6 @@
             font-weight: 500;
             color: #b8b0d6;
         }
-        /* Efek loading */
         .weather-loading {
             font-size: 11px;
             color: #6a628a;
@@ -60,6 +59,26 @@
         @keyframes pulse {
             0%, 100% { opacity: 0.4; }
             50% { opacity: 1; }
+        }
+
+        /* Efek kursor glow */
+        .cursor-glow {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(150, 120, 255, 0.3) 0%, rgba(150, 120, 255, 0) 70%);
+            transform: translate(-50%, -50%);
+            transition: width 0.2s, height 0.2s, background 0.2s;
+            mix-blend-mode: screen;
+            will-change: transform;
+        }
+        .cursor-glow.active {
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, rgba(255, 120, 200, 0.4) 0%, rgba(255, 120, 200, 0) 70%);
         }
     </style>
 </head>
@@ -90,7 +109,7 @@
                 <span id="timeDisplay" class="time">00:00</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
 
-                <!-- ===== TAMBAHAN: CUACA WIDGET ===== -->
+                <!-- CUACA -->
                 <div class="weather-widget" id="weatherWidget">
                     <div class="weather-row" id="weatherRow">
                         <span class="weather-icon" id="weatherIcon">🌤️</span>
@@ -101,7 +120,6 @@
                         <span class="day-name" id="dayName">--</span>, <span id="dateFull">-- -- ----</span>
                     </div>
                 </div>
-                <!-- ===== AKHIR TAMBAHAN ===== -->
             </div>
         </header>
 
@@ -253,48 +271,58 @@
     </footer>
 </div>
 
+<!-- ELEMEN KURSOR GLOW -->
+<div class="cursor-glow" id="cursorGlow"></div>
+
+<!-- ===== MAIN JS ===== -->
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
-<!-- ===== TAMBAHAN SCRIPT CUACA (tidak mengubah main.js) ===== -->
+<!-- ========================================================= -->
+<!-- ===== TAMBAHAN SCRIPT: CUACA, KURSOR, CHAT TERPISAH, KONTEKS ===== -->
+<!-- ========================================================= -->
 <script>
+(function() {
+    'use strict';
+
+    // --------------------------------------------------------------
+    // 1. CUACA
+    // --------------------------------------------------------------
     (function() {
-        'use strict';
+        var weatherIcon = document.getElementById('weatherIcon');
+        var weatherTemp = document.getElementById('weatherTemp');
+        var weatherDesc = document.getElementById('weatherDesc');
+        var dayNameEl = document.getElementById('dayName');
+        var dateFullEl = document.getElementById('dateFull');
 
-        // DOM refs untuk cuaca
-        const weatherIcon = document.getElementById('weatherIcon');
-        const weatherTemp = document.getElementById('weatherTemp');
-        const weatherDesc = document.getElementById('weatherDesc');
-        const dayNameEl = document.getElementById('dayName');
-        const dateFullEl = document.getElementById('dateFull');
-
-        const TIMEZONE = 'Asia/Jakarta';
-        const LAT = -6.2088;
-        const LON = 106.8456;
+        var TIMEZONE = 'Asia/Jakarta';
+        var LAT = -6.2088;
+        var LON = 106.8456;
 
         function getFormattedDate() {
-            const now = new Date();
-            const formatter = new Intl.DateTimeFormat('id-ID', {
+            var now = new Date();
+            var formatter = new Intl.DateTimeFormat('id-ID', {
                 timeZone: TIMEZONE,
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
                 weekday: 'long',
             });
-            const parts = formatter.formatToParts(now);
-            let weekday = '', day = '', month = '', year = '';
-            for (const p of parts) {
+            var parts = formatter.formatToParts(now);
+            var weekday = '', day = '', month = '', year = '';
+            for (var i = 0; i < parts.length; i++) {
+                var p = parts[i];
                 if (p.type === 'weekday') weekday = p.value;
-                if (p.type === 'day') day = p.value;
-                if (p.type === 'month') month = p.value;
-                if (p.type === 'year') year = p.value;
+                else if (p.type === 'day') day = p.value;
+                else if (p.type === 'month') month = p.value;
+                else if (p.type === 'year') year = p.value;
             }
-            return { weekday, day, month, year };
+            return { weekday: weekday, day: day, month: month, year: year };
         }
 
         function updateDate() {
-            const d = getFormattedDate();
+            var d = getFormattedDate();
             dayNameEl.textContent = d.weekday;
-            dateFullEl.textContent = `${d.day} ${d.month} ${d.year}`;
+            dateFullEl.textContent = d.day + ' ' + d.month + ' ' + d.year;
         }
 
         function mapWeatherCode(code) {
@@ -316,28 +344,21 @@
         }
 
         async function fetchWeather() {
-            const url =
-                `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true&timezone=${TIMEZONE}`;
-
+            var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON + '&current_weather=true&timezone=' + TIMEZONE;
             try {
-                const resp = await fetch(url);
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                const data = await resp.json();
-
-                const current = data.current_weather;
-                if (!current) throw new Error('No current_weather data');
-
-                const temp = Math.round(current.temperature);
-                const code = current.weathercode;
-
-                const { desc, emoji } = mapWeatherCode(code);
-
-                weatherTemp.textContent = `${temp}°C`;
-                weatherDesc.textContent = desc;
-                weatherIcon.textContent = emoji;
-
+                var resp = await fetch(url);
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var data = await resp.json();
+                var current = data.current_weather;
+                if (!current) throw new Error('No data');
+                var temp = Math.round(current.temperature);
+                var code = current.weathercode;
+                var result = mapWeatherCode(code);
+                weatherTemp.textContent = temp + '°C';
+                weatherDesc.textContent = result.desc;
+                weatherIcon.textContent = result.emoji;
             } catch (err) {
-                console.warn('Weather fetch error:', err);
+                console.warn('Weather error:', err);
                 weatherTemp.textContent = '--°C';
                 weatherDesc.textContent = 'tidak tersedia';
                 weatherIcon.textContent = '🌐';
@@ -347,17 +368,224 @@
         function initWeather() {
             updateDate();
             fetchWeather();
-            setInterval(fetchWeather, 600000); // 10 menit
+            setInterval(fetchWeather, 600000);
         }
-
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initWeather);
-        } else {
-            initWeather();
-        }
+        } else { initWeather(); }
     })();
+
+    // --------------------------------------------------------------
+    // 2. EFEK KURSOR GLOW
+    // --------------------------------------------------------------
+    (function() {
+        var glow = document.getElementById('cursorGlow');
+        if (!glow) return;
+        var mouseX = -100, mouseY = -100;
+        var currentX = -100, currentY = -100;
+
+        document.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        function animateGlow() {
+            var diffX = mouseX - currentX;
+            var diffY = mouseY - currentY;
+            currentX += diffX * 0.15;
+            currentY += diffY * 0.15;
+            glow.style.left = currentX + 'px';
+            glow.style.top = currentY + 'px';
+            requestAnimationFrame(animateGlow);
+        }
+
+        var interactive = document.querySelectorAll('button, input, .action-btn, .switch-btn, .avatar, .chat-cta, .fab-chat');
+        for (var i = 0; i < interactive.length; i++) {
+            var el = interactive[i];
+            el.addEventListener('mouseenter', function() { glow.classList.add('active'); });
+            el.addEventListener('mouseleave', function() { glow.classList.remove('active'); });
+        }
+
+        animateGlow();
+        document.addEventListener('mouseleave', function() { glow.style.opacity = '0'; });
+        document.addEventListener('mouseenter', function() { glow.style.opacity = '1'; });
+    })();
+
+    // --------------------------------------------------------------
+    // 3. CHAT TERPISAH + KONTEKS SILANG (30%)
+    // --------------------------------------------------------------
+    // Ambil referensi fungsi addMessage asli (dari main.js)
+    var originalAddMessage = window.addMessage;
+
+    // Buat object riwayat per karakter
+    var chatHistory = { shiro: [], sishin: [] };
+
+    // Override addMessage untuk menyimpan ke riwayat
+    window.addMessage = function(text, sender) {
+        originalAddMessage(text, sender);
+        if (sender === 'shiro' || sender === 'sishin') {
+            chatHistory[sender].push({ text: text, sender: sender });
+        } else if (sender === 'user') {
+            var char = window.currentCharacter || 'shiro';
+            chatHistory[char].push({ text: text, sender: 'user' });
+        }
+    };
+
+    // Override openChat untuk memuat riwayat karakter aktif
+    var originalOpenChat = window.openChat;
+    window.openChat = function() {
+        originalOpenChat();
+        var chatBox = document.getElementById('chatBox');
+        if (!chatBox) return;
+        chatBox.innerHTML = '';
+        var char = window.currentCharacter || 'shiro';
+        var history = chatHistory[char] || [];
+        if (history.length === 0) {
+            var greeting = (char === 'shiro') ? 'Halo Sayang! Yuk ngobrol~' : 'Kak! Sishin siap main bareng!';
+            history.push({ text: greeting, sender: char });
+            originalAddMessage(greeting, char);
+        } else {
+            for (var i = 0; i < history.length; i++) {
+                originalAddMessage(history[i].text, history[i].sender);
+            }
+        }
+    };
+
+    // Override switchCharacter agar update chat saat switch
+    var originalSwitchCharacter = window.switchCharacter;
+    window.switchCharacter = function(char) {
+        originalSwitchCharacter(char);
+        var chatScreen = document.getElementById('chatScreen');
+        if (chatScreen && chatScreen.style.display !== 'none') {
+            var chatBox = document.getElementById('chatBox');
+            if (chatBox) {
+                chatBox.innerHTML = '';
+                var history = chatHistory[char] || [];
+                for (var i = 0; i < history.length; i++) {
+                    originalAddMessage(history[i].text, history[i].sender);
+                }
+            }
+            var chatName = document.getElementById('chatCharName');
+            if (chatName) chatName.textContent = char === 'shiro' ? 'Shiro' : 'Sishin';
+        }
+    };
+
+    // --------------------------------------------------------------
+    // FUNGSI KONTEKS SILANG (30%)
+    // --------------------------------------------------------------
+    function getLastMessagesFromCharacter(char, count) {
+        var history = chatHistory[char] || [];
+        var messages = [];
+        for (var i = 0; i < history.length; i++) {
+            if (history[i].sender === char) messages.push(history[i]);
+        }
+        return messages.slice(-count);
+    }
+
+    function buildContext(char) {
+        var otherChar = (char === 'shiro') ? 'sishin' : 'shiro';
+        var lastMessages = getLastMessagesFromCharacter(otherChar, 2);
+        if (lastMessages.length === 0) return null;
+        var name = otherChar === 'shiro' ? 'Shiro' : 'Sishin';
+        var parts = [];
+        for (var i = 0; i < lastMessages.length; i++) {
+            parts.push('"' + lastMessages[i].text + '"');
+        }
+        return 'Oh iya, sebelumnya ' + name + ' pernah bilang: ' + parts.join(', ') + '.';
+    }
+
+    // Override sendMessage dengan fitur konteks
+    window.sendMessage = function() {
+        var input = document.getElementById('userInput');
+        if (!input) return;
+        var message = input.value.trim();
+        if (!message) return;
+
+        var char = window.currentCharacter || 'shiro';
+
+        // 30% kemungkinan tambahkan konteks
+        var modifiedMessage = message;
+        if (Math.random() < 0.3) {
+            var context = buildContext(char);
+            if (context) {
+                modifiedMessage = message + ' ' + context;
+                console.log('[Konteks] ' + context);
+            }
+        }
+
+        // Simpan & tampilkan pesan asli
+        chatHistory[char].push({ text: message, sender: 'user' });
+        originalAddMessage(message, 'user');
+
+        input.value = '';
+        var button = document.getElementById('sendBtn');
+        if (button) button.disabled = true;
+        input.disabled = true;
+
+        var avatar = document.getElementById('homeAvatar');
+        var glow = document.getElementById('avatarGlow');
+        if (avatar) avatar.classList.add('speaking');
+        if (glow) glow.classList.add('active');
+
+        fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: modifiedMessage, karakter: char })
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            var reply = data.reply || 'Maaf, aku sedang sibuk.';
+            var detectedChar = data.karakter || char;
+            chatHistory[detectedChar].push({ text: reply, sender: detectedChar });
+            originalAddMessage(reply, detectedChar);
+            return fetch('/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: data.suara || reply, karakter: detectedChar })
+            });
+        })
+        .then(function(ttsResponse) {
+            if (ttsResponse && ttsResponse.ok) return ttsResponse.blob();
+            return null;
+        })
+        .then(function(blob) {
+            if (blob) {
+                var audioUrl = URL.createObjectURL(blob);
+                var audio = new Audio(audioUrl);
+                audio.play();
+                audio.onended = function() {
+                    var av = document.getElementById('homeAvatar');
+                    var gl = document.getElementById('avatarGlow');
+                    if (av) av.classList.remove('speaking');
+                    if (gl) gl.classList.remove('active');
+                    URL.revokeObjectURL(audioUrl);
+                };
+            } else {
+                var av = document.getElementById('homeAvatar');
+                var gl = document.getElementById('avatarGlow');
+                if (av) av.classList.remove('speaking');
+                if (gl) gl.classList.remove('active');
+            }
+        })
+        .catch(function(error) {
+            console.error('Send error:', error);
+            originalAddMessage('Maaf, ada masalah koneksi.', 'shiro');
+            var av = document.getElementById('homeAvatar');
+            var gl = document.getElementById('avatarGlow');
+            if (av) av.classList.remove('speaking');
+            if (gl) gl.classList.remove('active');
+        })
+        .finally(function() {
+            input.disabled = false;
+            if (button) button.disabled = false;
+            input.focus();
+        });
+    };
+
+    console.log('✅ Chat terpisah + konteks silang 30% aktif.');
+
+})();
 </script>
-<!-- ===== AKHIR TAMBAHAN ===== -->
 
 </body>
 </html>

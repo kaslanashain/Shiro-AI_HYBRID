@@ -776,3 +776,147 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 console.log('Shiro AI initialized.');
+// Override sendMessage untuk menambahkan konteks antar karakter
+(function() {
+    // Simpan referensi ke fungsi sendMessage yang sudah ada (yang sudah di-override sebelumnya)
+    // Karena kita sudah override sebelumnya, kita ambil dari window.sendMessage
+    // Tapi kita akan buat fungsi baru yang sepenuhnya menggantikan.
+    // Kita akan copy paste dari script sebelumnya, lalu kita modifikasi.
+
+    // Sebenarnya lebih mudah: kita override lagi dengan fungsi baru yang memanggil fungsi lama,
+    // tapi fungsi lama sudah menampilkan pesan dan mengirim. Kita tidak bisa memanggilnya karena
+    // akan mengirim pesan asli. Jadi kita harus membuat ulang dari awal, dengan modifikasi.
+
+    // Kita akan ambil kode sendMessage dari script sebelumnya dan kita modifikasi.
+
+    var originalAddMessage = window.addMessage;
+    var chatHistory = window.chatHistory || { shiro: [], sishin: [] };
+
+    // Fungsi untuk mendapatkan 2 pesan terakhir dari karakter tertentu (hanya dari AI, bukan user)
+    function getLastMessagesFromCharacter(char, count) {
+        var history = chatHistory[char] || [];
+        var messages = history.filter(function(msg) {
+            return msg.sender === char;
+        });
+        return messages.slice(-count);
+    }
+
+    // Fungsi untuk membangun konteks
+    function buildContext(char) {
+        // Ambil karakter lain
+        var otherChar = (char === 'shiro') ? 'sishin' : 'shiro';
+        var lastMessages = getLastMessagesFromCharacter(otherChar, 2);
+        if (lastMessages.length === 0) return null;
+
+        var contextText = '';
+        var name = otherChar === 'shiro' ? 'Shiro' : 'Sishin';
+        // Buat kalimat konteks
+        var messagesStr = lastMessages.map(function(msg) {
+            return '"' + msg.text + '"';
+        }).join(', ');
+        contextText = 'Oh iya, sebelumnya ' + name + ' pernah bilang: ' + messagesStr + '.';
+        return contextText;
+    }
+
+    // Override sendMessage
+    window.sendMessage = function() {
+        var input = document.getElementById('userInput');
+        if (!input) return;
+        var message = input.value.trim();
+        if (!message) return;
+
+        // Ambil karakter aktif
+        var char = window.currentCharacter || 'shiro';
+
+        // Tentukan apakah tambahkan konteks (30% kemungkinan)
+        var shouldAddContext = (Math.random() < 0.3);
+        var modifiedMessage = message;
+
+        if (shouldAddContext) {
+            var context = buildContext(char);
+            if (context) {
+                modifiedMessage = message + ' ' + context;
+                console.log('Menambahkan konteks:', context);
+            }
+        }
+
+        // Tampilkan pesan asli di chat
+        chatHistory[char].push({ text: message, sender: 'user' });
+        originalAddMessage(message, 'user');
+
+        // Kosongkan input
+        input.value = '';
+
+        // Kirim ke server dengan pesan yang mungkin sudah dimodifikasi
+        var button = document.getElementById('sendBtn');
+        if (button) button.disabled = true;
+        input.disabled = true;
+
+        var avatar = document.getElementById('homeAvatar');
+        var glow = document.getElementById('avatarGlow');
+        if (avatar) avatar.classList.add('speaking');
+        if (glow) glow.classList.add('active');
+
+        fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: modifiedMessage, karakter: char })
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            var reply = data.reply || 'Maaf, aku sedang sibuk.';
+            var detectedChar = data.karakter || char;
+
+            // Tambahkan balasan ke riwayat dan tampilkan
+            chatHistory[detectedChar].push({ text: reply, sender: detectedChar });
+            originalAddMessage(reply, detectedChar);
+
+            // TTS
+            return fetch('/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: data.suara || reply, karakter: detectedChar })
+            });
+        })
+        .then(function(ttsResponse) {
+            if (ttsResponse && ttsResponse.ok) {
+                return ttsResponse.blob();
+            }
+            return null;
+        })
+        .then(function(blob) {
+            if (blob) {
+                var audioUrl = URL.createObjectURL(blob);
+                var audio = new Audio(audioUrl);
+                audio.play();
+                audio.onended = function() {
+                    var avatar = document.getElementById('homeAvatar');
+                    var glow = document.getElementById('avatarGlow');
+                    if (avatar) avatar.classList.remove('speaking');
+                    if (glow) glow.classList.remove('active');
+                    URL.revokeObjectURL(audioUrl);
+                };
+            } else {
+                var avatar = document.getElementById('homeAvatar');
+                var glow = document.getElementById('avatarGlow');
+                if (avatar) avatar.classList.remove('speaking');
+                if (glow) glow.classList.remove('active');
+            }
+        })
+        .catch(function(error) {
+            console.error('Send message error:', error);
+            originalAddMessage('Maaf, ada masalah koneksi.', 'shiro');
+            var avatar = document.getElementById('homeAvatar');
+            var glow = document.getElementById('avatarGlow');
+            if (avatar) avatar.classList.remove('speaking');
+            if (glow) glow.classList.remove('active');
+        })
+        .finally(function() {
+            input.disabled = false;
+            if (button) button.disabled = false;
+            input.focus();
+        });
+    };
+
+    console.log('Fitur konteks antar karakter diaktifkan (30% kemungkinan).');
+})();

@@ -1,4 +1,5 @@
 import logging
+import os
 
 import google.generativeai as genai
 import ollama
@@ -98,14 +99,17 @@ def build_system_prompt(karakter, konteks, score, fakta_list):
     )
 
 
+# ===== INI BAGIAN YANG DIPERBAIKI =====
 def _call_ollama(messages):
-    return ollama.chat(
+    # Ambil host dari environment variable yang sudah diset di config.py
+    host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+    print(f"🔗 Connecting to Ollama at {host}")  # Log untuk debugging
+    client = ollama.Client(host=host)
+    return client.chat(
         model=config.OLLAMA_MODEL,
         messages=messages,
         options=config.OLLAMA_OPTIONS,
     )
-
-
 def _parse_model_response(raw, konteks, karakter):
     profile = CHARACTER_PROFILES[karakter]
     parsed = parse_json_response(raw)
