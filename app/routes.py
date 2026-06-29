@@ -5,6 +5,9 @@ from flask import Flask, jsonify, render_template, request, send_file
 
 from app import config
 from app.chat import apply_sawer, deskripsi_gambar, jawab_shiro
+# ===== TAMBAHAN: Import fungsi untuk inisiatif, event, mood =====
+from app.chat import check_initiative, check_events, get_mood
+# ==============================================================
 from app.db import close_db, muat_status
 from app.tts import cleanup_old_tts_files, generate_speech
 
@@ -46,6 +49,44 @@ def register_routes(app):
     @app.route("/status", methods=["GET"])
     def get_status():
         return jsonify(muat_status())
+
+    # ================================================================
+    # ===== TAMBAHAN: ENDPOINT UNTUK INISIATIF =====
+    # ================================================================
+    @app.route("/initiative", methods=["GET"])
+    def initiative():
+        """Cek apakah ada inisiatif dari karakter (chat duluan)"""
+        result = check_initiative()
+        if result:
+            return jsonify(result)
+        return jsonify(None), 200
+
+    # ================================================================
+    # ===== TAMBAHAN: ENDPOINT UNTUK EVENT =====
+    # ================================================================
+    @app.route("/event", methods=["GET"])
+    def event_check():
+        """Cek apakah ada event yang harus dijalankan (kejutan, hadiah, dll)"""
+        result = check_events()
+        if result:
+            return jsonify(result)
+        return jsonify(None), 200
+
+    # ================================================================
+    # ===== TAMBAHAN: ENDPOINT UNTUK EKSPRESI WAJAH =====
+    # ================================================================
+    @app.route("/mood", methods=["GET"])
+    def mood():
+        """Kirim mood karakter berdasarkan afeksi"""
+        karakter = request.args.get("karakter", "shiro").strip().lower()
+        if karakter not in ("shiro", "sishin"):
+            karakter = "shiro"
+        result = get_mood(karakter)
+        return jsonify(result)
+
+    # ================================================================
+    # ===== ENDPOINT YANG SUDAH ADA (TIDAK DIUBAH) =====
+    # ================================================================
 
     @app.route("/tts", methods=["POST"])
     def tts():

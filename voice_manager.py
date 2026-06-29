@@ -1,4 +1,4 @@
-# voice_manager.py (tanpa VITS)
+# voice_manager.py
 import asyncio
 import logging
 import os
@@ -45,13 +45,19 @@ class VoiceManager:
         return any(keyword in text_lower for keyword in self.romaji_keywords)
 
     async def generate(self, text, karakter="shiro", bahasa="id"):
-        if self._detect_japanese(text) or self.voicevox_available:
-            if self.voicevox_available:
-                try:
-                    return await self._generate_voicevox(text, karakter)
-                except Exception:
-                    logger.exception("Voicevox failed, fallback Edge TTS")
-        return await self._generate_edge_tts(text, "jp" if self._detect_japanese(text) else "id")
+        """
+        Prioritas: VOICEVOX (jika tersedia) -> fallback Edge TTS
+        - Shiro: VOICEVOX speaker 107 (Tohoku Zunko)
+        - Sishin: VOICEVOX speaker 8 (Kasukabe Tsumugi)
+        """
+        if self.voicevox_available:
+            try:
+                return await self._generate_voicevox(text, karakter)
+            except Exception as e:
+                logger.warning(f"VOICEVOX gagal untuk {karakter}: {e}, fallback ke Edge TTS")
+        # Fallback Edge TTS
+        lang = "jp" if self._detect_japanese(text) else "id"
+        return await self._generate_edge_tts(text, lang)
 
     def _voicevox_query(self, text, speaker, params):
         query_url = f"{self.voicevox_url}/audio_query"
