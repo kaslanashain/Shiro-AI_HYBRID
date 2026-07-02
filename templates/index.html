@@ -184,16 +184,14 @@
             <button class="theme-option" onclick="setTheme('rain')">Hujan</button>
         </div>
 
+        <!-- ===== PLAYLIST MENU - DINAMIS (DIISI OLEH JS) ===== -->
         <div id="playlistMenu" class="playlist-menu">
             <div class="playlist-header">
                 <span>Playlist BGM</span>
                 <button onclick="togglePlaylist()"><i class="fas fa-times"></i></button>
             </div>
-            <div class="playlist-item" onclick="playMusic(0)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Santai</span></div>
-            <div class="playlist-item" onclick="playMusic(1)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Ceria</span></div>
-            <div class="playlist-item" onclick="playMusic(2)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Romantis</span></div>
-            <div class="playlist-item" onclick="playMusic(3)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Semangat</span></div>
-            <div class="playlist-item" onclick="playMusic(4)"><span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">Lagu Malam</span></div>
+            <!-- Wadah kosong untuk item playlist, akan diisi oleh togglePlaylist() -->
+            <div class="playlist-items"></div>
         </div>
 
         <div class="bgm-control">

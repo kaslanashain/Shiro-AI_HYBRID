@@ -8,8 +8,15 @@
 var currentCharacter = 'shiro';
 var chatHistory = { shiro: [], sishin: [] };
 var bgmIndex = 0;
-var bgmList = ['bgm_1.mp3', 'bgm_2.mp3', 'bgm_3.mp3', 'bgm_4.mp3', 'bgm_5.mp3'];
-var bgmNames = ['Lagu Santai', 'Lagu Ceria', 'Lagu Romantis', 'Lagu Semangat', 'Lagu Malam'];
+// ===== SESUAIKAN DENGAN FILE MP3 ANDA (MAKS 9) =====
+var bgmList = [
+    'bgm_1.mp3', 'bgm_2.mp3', 'bgm_3.mp3', 'bgm_4.mp3', 'bgm_5.mp3',
+    'bgm_6.mp3', 'bgm_7.mp3', 'bgm_8.mp3', 'bgm_9.mp3'
+];
+var bgmNames = [
+    'Lagu Santai', 'Lagu Ceria', 'Lagu Romantis', 'Lagu Semangat', 'Lagu Malam',
+    'Lagu Sedih', 'Lagu Bahagia', 'Lagu Tenang', 'Lagu Cinta'
+];
 var mediaRecorder = null;
 var audioChunks = [];
 var isRecording = false;
@@ -190,6 +197,27 @@ function blinkAvatar() {
 }
 
 // ==========================================
+// TYPING INDICATOR (TAMBAHAN POLISH)
+// ==========================================
+function showTypingIndicator() {
+    var chatBox = document.getElementById('chatBox');
+    if (!chatBox) return;
+    var old = document.getElementById('typingIndicator');
+    if (old) old.remove();
+    var indicator = document.createElement('div');
+    indicator.className = 'msg msg-shiro typing-indicator';
+    indicator.id = 'typingIndicator';
+    indicator.innerHTML = '<span></span><span></span><span></span>';
+    chatBox.appendChild(indicator);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function hideTypingIndicator() {
+    var indicator = document.getElementById('typingIndicator');
+    if (indicator) indicator.remove();
+}
+
+// ==========================================
 // PUTAR AUDIO (TTS) - DIPERBAIKI DENGAN ANIMASI BICARA
 // ==========================================
 async function putarAudio(teks, karakter) {
@@ -353,6 +381,8 @@ window.sendMessage = function() {
     console.log('📤 Mengirim pesan untuk karakter:', char);
 
     addMessage(message, 'user');
+    showTypingIndicator();
+
     input.value = '';
     input.disabled = true;
 
@@ -380,6 +410,7 @@ window.sendMessage = function() {
         input.focus();
         if (avatar) avatar.classList.remove('speaking');
         if (glow) glow.classList.remove('active');
+        hideTypingIndicator();
     })
     .catch(function(error) {
         console.error('❌ Send error:', error);
@@ -389,6 +420,7 @@ window.sendMessage = function() {
         input.focus();
         if (avatar) avatar.classList.remove('speaking');
         if (glow) glow.classList.remove('active');
+        hideTypingIndicator();
     });
 };
 
@@ -610,7 +642,6 @@ function closeChat() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ DOM siap, memasang event listener...');
 
-    // Tombol kirim (fallback event listener, tapi onclick sudah di HTML)
     var sendBtn = document.getElementById('sendBtn');
     if (sendBtn) {
         sendBtn.addEventListener('click', function(e) {
@@ -622,7 +653,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn('❌ tombol kirim (sendBtn) tidak ditemukan di HTML');
     }
 
-    // Input enter
     var userInput = document.getElementById('userInput');
     if (userInput) {
         userInput.addEventListener('keydown', function(e) {
@@ -634,7 +664,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅ Event listener Enter terpasang');
     }
 
-    // Tombol mic
     var micBtn = document.getElementById('tombol-mic');
     if (micBtn) {
         micBtn.addEventListener('click', function() {
@@ -646,37 +675,30 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Maskot
     var mascot = document.getElementById('shiro-mascot');
     if (mascot) {
         mascot.addEventListener('click', tampilkanObrolan);
     }
 
-    // Tutup chat
     var tutupBtn = document.getElementById('tombol-tutup');
     if (tutupBtn) {
         tutupBtn.addEventListener('click', sembunyikanObrolan);
     }
 
-    // Upload
     var uploadBtn = document.querySelector('.btn-upload');
     if (uploadBtn && fileInput) {
         uploadBtn.addEventListener('click', function() { fileInput.click(); });
     }
 
-    // ===== INISIALISASI AVATAR IDLE =====
     var avatar = document.getElementById('homeAvatar');
     if (avatar) {
         avatar.classList.add('idle');
     }
 
-    // ===== INISIALISASI BLINK =====
-    // Blink setiap 3-5 detik (acak)
     setInterval(function() {
         blinkAvatar();
     }, 3000 + Math.random() * 2000);
 
-    // Inisialisasi lainnya
     createRain();
     createGlint();
     createSakura();
@@ -1009,11 +1031,36 @@ function setTheme(theme) {
 }
 
 // ==========================================
-// BGM FUNCTIONS
+// BGM FUNCTIONS (TANPA DUPLIKAT - PLAYLIST DINAMIS)
 // ==========================================
 function togglePlaylist() {
     var menu = document.getElementById('playlistMenu');
-    if (menu) menu.classList.toggle('active');
+    if (!menu) return;
+    menu.classList.toggle('active');
+
+    if (menu.classList.contains('active')) {
+        var container = menu.querySelector('.playlist-items');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'playlist-items';
+            menu.appendChild(container);
+        }
+        // KOSONGKAN DAHULU AGAR TIDAK DUPLIKAT
+        container.innerHTML = '';
+        for (var i = 0; i < bgmList.length; i++) {
+            var item = document.createElement('div');
+            item.className = 'playlist-item';
+            if (i === bgmIndex) item.classList.add('active');
+            item.innerHTML = '<span class="play-icon"><i class="fas fa-play"></i></span><span class="play-name">' + bgmNames[i] + '</span>';
+            item.onclick = (function(index) {
+                return function() {
+                    playMusic(index);
+                    menu.classList.remove('active');
+                };
+            })(i);
+            container.appendChild(item);
+        }
+    }
 }
 
 function playMusic(index) {
@@ -1042,7 +1089,9 @@ function playMusic(index) {
                 items[i].classList.remove('active');
             }
             if (items[index]) items[index].classList.add('active');
-            togglePlaylist();
+            // Tutup playlist setelah memilih
+            var menu = document.getElementById('playlistMenu');
+            if (menu) menu.classList.remove('active');
         })
         .catch(function() {
             console.warn('BGM file missing:', bgmList[index]);
