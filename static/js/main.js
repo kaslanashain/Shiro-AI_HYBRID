@@ -1,5 +1,5 @@
 // ==========================================
-// SHIRO AI - MAIN APPLICATION
+// SHIRO AI - MAIN APPLICATION (FINAL)
 // ==========================================
 
 // ==========================================
@@ -16,15 +16,15 @@ var isRecording = false;
 var audioPlayer = null;
 
 // ==========================================
-// DOM REFS
+// DOM REFS (dengan fallback)
 // ==========================================
 const kotakObrolan = document.getElementById('kotak-obrolan');
 const maskot = document.getElementById('shiro-mascot');
 const btnTutup = document.getElementById('tombol-tutup');
-const inputPesan = document.getElementById('input-pesan');
-const tombolKirim = document.getElementById('tombol-kirim');
+const inputPesan = document.getElementById('userInput');
+const tombolKirim = document.getElementById('sendBtn');
 const tombolMic = document.getElementById('tombol-mic');
-const tombolUpload = document.getElementById('tombol-upload');
+const tombolUpload = document.querySelector('.btn-upload') || document.getElementById('tombol-upload');
 const fileInput = document.getElementById('file-input');
 const riwayat = document.getElementById('riwayat-pesan');
 const bubbleIntro = document.getElementById('bubbleIntro');
@@ -43,7 +43,7 @@ function toggleFullscreen() {
 }
 
 // ==========================================
-// TIME
+// TIME & GREETING
 // ==========================================
 function updateTime() {
     var now = new Date();
@@ -77,17 +77,20 @@ setInterval(function() {
 // CHAT UI FUNCTIONS
 // ==========================================
 function tampilkanObrolan() {
+    if (!kotakObrolan) return;
     kotakObrolan.classList.remove('sembunyi');
-    bubbleIntro.style.display = 'none';
-    setTimeout(() => inputPesan.focus(), 300);
+    if (bubbleIntro) bubbleIntro.style.display = 'none';
+    setTimeout(() => { if (inputPesan) inputPesan.focus(); }, 300);
 }
 
 function sembunyikanObrolan() {
+    if (!kotakObrolan) return;
     kotakObrolan.classList.add('sembunyi');
-    setTimeout(() => { bubbleIntro.style.display = 'block'; }, 500);
+    setTimeout(() => { if (bubbleIntro) bubbleIntro.style.display = 'block'; }, 500);
 }
 
 function tambahPesanUser(teks) {
+    if (!riwayat) return;
     const div = document.createElement('div');
     div.className = 'pesan-user';
     div.textContent = teks;
@@ -96,6 +99,7 @@ function tambahPesanUser(teks) {
 }
 
 function tambahPesanShiro(teks) {
+    if (!riwayat) return;
     const div = document.createElement('div');
     div.className = 'pesan-shiro';
     div.textContent = teks;
@@ -104,13 +108,14 @@ function tambahPesanShiro(teks) {
 }
 
 function updateCharCount() {
+    if (!charCount || !inputPesan) return;
     const panjang = inputPesan.value.length;
     charCount.textContent = panjang;
     charCount.style.color = panjang > 180 ? '#ff6b8a' : '#a07a7a';
 }
 
 // ==========================================
-// ADD MESSAGE (dengan dukungan karakter)
+// ADD MESSAGE (CHAT BOX)
 // ==========================================
 function addMessage(text, sender) {
     var chatBox = document.getElementById('chatBox');
@@ -148,15 +153,60 @@ addMessage = function(text, sender) {
 };
 
 // ==========================================
-// PUTAR AUDIO (TTS)
+// LOAD CHAT HISTORY
+// ==========================================
+function loadChatHistory(char) {
+    var chatBox = document.getElementById('chatBox');
+    if (!chatBox) return;
+    chatBox.innerHTML = '';
+    var history = chatHistory[char] || [];
+    if (history.length === 0) {
+        var greeting = (char === 'shiro')
+            ? 'Halo Sayang! Yuk ngobrol~'
+            : 'Kak! Sishin siap main bareng!';
+        chatHistory[char].push({ text: greeting, sender: char });
+        originalAddMessage(greeting, char);
+    } else {
+        history.forEach(function(msg) {
+            originalAddMessage(msg.text, msg.sender);
+        });
+    }
+    var chatName = document.getElementById('chatCharName');
+    if (chatName) {
+        chatName.textContent = char === 'shiro' ? 'Shiro' : 'Sishin';
+    }
+}
+
+// ==========================================
+// BLINK AVATAR (OPSI 1 - TAMBAHAN)
+// ==========================================
+function blinkAvatar() {
+    const overlay = document.getElementById('blinkOverlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    setTimeout(function() {
+        overlay.classList.remove('active');
+    }, 150);
+}
+
+// ==========================================
+// PUTAR AUDIO (TTS) - DIPERBAIKI DENGAN ANIMASI BICARA
 // ==========================================
 async function putarAudio(teks, karakter) {
     if (!teks) return;
+
+    const avatar = document.getElementById('homeAvatar');
+    // Aktifkan animasi bicara
+    if (avatar) {
+        avatar.classList.remove('idle');
+        avatar.classList.add('speaking');
+    }
+
     try {
         const response = await fetch('/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 text: teks,
                 karakter: karakter || currentCharacter || 'shiro'
             })
@@ -170,16 +220,35 @@ async function putarAudio(teks, karakter) {
         }
         audioPlayer = new Audio(url);
         audioPlayer.play();
-        audioPlayer.onended = () => {
+
+        audioPlayer.onended = function() {
             URL.revokeObjectURL(url);
+            // Kembali ke idle setelah bicara selesai
+            if (avatar) {
+                avatar.classList.remove('speaking');
+                avatar.classList.add('idle');
+            }
         };
+
+        // Fallback: jika audio gagal, kembali ke idle setelah 5 detik
+        setTimeout(function() {
+            if (avatar) {
+                avatar.classList.remove('speaking');
+                avatar.classList.add('idle');
+            }
+        }, 5000);
+
     } catch (error) {
         console.warn('TTS error:', error);
+        if (avatar) {
+            avatar.classList.remove('speaking');
+            avatar.classList.add('idle');
+        }
     }
 }
 
 // ==========================================
-// SWITCH CHARACTER
+// SWITCH CHARACTER (DIPERBAIKI - MEMPERTAHANKAN IDLE)
 // ==========================================
 function switchCharacter(char) {
     if (char === currentCharacter) return;
@@ -194,33 +263,54 @@ function switchCharacter(char) {
     var glow = document.getElementById('avatarGlow');
 
     if (char === 'shiro') {
-        avatar.src = '/static/images/shiro.png';
-        avatar.className = 'avatar shiro-mode';
-        name.textContent = 'Shiro';
-        subtitle.textContent = 'Onee-san yang manja';
-        btnShiro.classList.add('active');
-        btnSishin.classList.remove('active');
-        ring.className = 'avatar-ring shiro-ring';
-        glow.className = 'avatar-glow shiro-glow';
-        status.textContent = 'Afeksi 50%';
-        document.getElementById('cameraTitle').textContent = 'Kirim Foto untuk Shiro';
-        document.getElementById('voiceTitle').textContent = 'Rekam Suara untuk Shiro';
-        document.getElementById('sawerTitle').textContent = 'Sawer Shiro';
-        document.getElementById('sawerDesc').textContent = 'Dukung Shiro dengan saweran virtual.';
+        if (avatar) {
+            avatar.src = '/static/images/shiro.png';
+            avatar.classList.remove('shiro-mode', 'sishin-mode');
+            avatar.classList.add('shiro-mode');
+            // Jika tidak sedang bicara, tambahkan idle
+            if (!avatar.classList.contains('speaking')) {
+                avatar.classList.add('idle');
+            }
+        }
+        if (name) name.textContent = 'Shiro';
+        if (subtitle) subtitle.textContent = 'Onee-san yang manja';
+        if (btnShiro) btnShiro.classList.add('active');
+        if (btnSishin) btnSishin.classList.remove('active');
+        if (ring) ring.className = 'avatar-ring shiro-ring';
+        if (glow) glow.className = 'avatar-glow shiro-glow';
+        if (status) status.textContent = 'Afeksi 50%';
+        var cameraTitle = document.getElementById('cameraTitle');
+        if (cameraTitle) cameraTitle.textContent = 'Kirim Foto untuk Shiro';
+        var voiceTitle = document.getElementById('voiceTitle');
+        if (voiceTitle) voiceTitle.textContent = 'Rekam Suara untuk Shiro';
+        var sawerTitle = document.getElementById('sawerTitle');
+        if (sawerTitle) sawerTitle.textContent = 'Sawer Shiro';
+        var sawerDesc = document.getElementById('sawerDesc');
+        if (sawerDesc) sawerDesc.textContent = 'Dukung Shiro dengan saweran virtual.';
     } else {
-        avatar.src = '/static/images/sishin.png';
-        avatar.className = 'avatar sishin-mode';
-        name.textContent = 'Sishin';
-        subtitle.textContent = 'Adik kecil yang imut';
-        btnSishin.classList.add('active');
-        btnShiro.classList.remove('active');
-        ring.className = 'avatar-ring sishin-ring';
-        glow.className = 'avatar-glow sishin-glow';
-        status.textContent = 'Afeksi 50%';
-        document.getElementById('cameraTitle').textContent = 'Kirim Foto untuk Sishin';
-        document.getElementById('voiceTitle').textContent = 'Rekam Suara untuk Sishin';
-        document.getElementById('sawerTitle').textContent = 'Sawer Sishin';
-        document.getElementById('sawerDesc').textContent = 'Dukung Sishin dengan saweran virtual.';
+        if (avatar) {
+            avatar.src = '/static/images/sishin.png';
+            avatar.classList.remove('shiro-mode', 'sishin-mode');
+            avatar.classList.add('sishin-mode');
+            if (!avatar.classList.contains('speaking')) {
+                avatar.classList.add('idle');
+            }
+        }
+        if (name) name.textContent = 'Sishin';
+        if (subtitle) subtitle.textContent = 'Adik kecil yang imut';
+        if (btnSishin) btnSishin.classList.add('active');
+        if (btnShiro) btnShiro.classList.remove('active');
+        if (ring) ring.className = 'avatar-ring sishin-ring';
+        if (glow) glow.className = 'avatar-glow sishin-glow';
+        if (status) status.textContent = 'Afeksi 50%';
+        var cameraTitle = document.getElementById('cameraTitle');
+        if (cameraTitle) cameraTitle.textContent = 'Kirim Foto untuk Sishin';
+        var voiceTitle = document.getElementById('voiceTitle');
+        if (voiceTitle) voiceTitle.textContent = 'Rekam Suara untuk Sishin';
+        var sawerTitle = document.getElementById('sawerTitle');
+        if (sawerTitle) sawerTitle.textContent = 'Sawer Sishin';
+        var sawerDesc = document.getElementById('sawerDesc');
+        if (sawerDesc) sawerDesc.textContent = 'Dukung Sishin dengan saweran virtual.';
     }
 
     currentCharacter = char;
@@ -228,164 +318,79 @@ function switchCharacter(char) {
     if (chatName) chatName.textContent = char === 'shiro' ? 'Shiro' : 'Sishin';
     console.log('Switched to:', char);
 
-    // Jika chatScreen terbuka, refresh riwayat
     var chatScreen = document.getElementById('chatScreen');
     if (chatScreen && chatScreen.style.display !== 'none') {
         loadChatHistory(char);
     }
-}
 
-// ==========================================
-// LOAD CHAT HISTORY
-// ==========================================
-function loadChatHistory(char) {
-    var chatBox = document.getElementById('chatBox');
-    if (!chatBox) return;
-
-    chatBox.innerHTML = '';
-
-    var history = chatHistory[char] || [];
-    if (history.length === 0) {
-        var greeting = (char === 'shiro')
-            ? 'Halo Sayang! Yuk ngobrol~'
-            : 'Kak! Sishin siap main bareng!';
-        chatHistory[char].push({ text: greeting, sender: char });
-        originalAddMessage(greeting, char);
-    } else {
-        history.forEach(function(msg) {
-            originalAddMessage(msg.text, msg.sender);
-        });
-    }
-
-    var chatName = document.getElementById('chatCharName');
-    if (chatName) {
-        chatName.textContent = char === 'shiro' ? 'Shiro' : 'Sishin';
-    }
-}
-
-// ==========================================
-// SEND MESSAGE (dengan konteks silang)
-// ==========================================
-(function() {
-    function getLastMessagesFromCharacter(char, count) {
-        var history = chatHistory[char] || [];
-        var messages = history.filter(function(msg) {
-            return msg.sender === char;
-        });
-        return messages.slice(-count);
-    }
-
-    function buildContext(char) {
-        var otherChar = (char === 'shiro') ? 'sishin' : 'shiro';
-        var lastMessages = getLastMessagesFromCharacter(otherChar, 2);
-        if (lastMessages.length === 0) return null;
-
-        var name = otherChar === 'shiro' ? 'Shiro' : 'Sishin';
-        var messagesStr = lastMessages.map(function(msg) {
-            return '"' + msg.text + '"';
-        }).join(', ');
-        return 'Oh iya, sebelumnya ' + name + ' pernah bilang: ' + messagesStr + '.';
-    }
-
-    window.sendMessage = function() {
-        var input = document.getElementById('userInput');
-        if (!input) return;
-        var message = input.value.trim();
-        if (!message) return;
-
-        var char = window.currentCharacter || 'shiro';
-        console.log('Mengirim pesan untuk karakter:', char);
-
-        var shouldAddContext = (Math.random() < 0.3);
-        var modifiedMessage = message;
-
-        if (shouldAddContext) {
-            var context = buildContext(char);
-            if (context) {
-                modifiedMessage = message + ' ' + context;
-                console.log('Menambahkan konteks:', context);
-            }
+    // Fallback: pastikan idle tetap ada setelah switch
+    setTimeout(function() {
+        if (avatar && !avatar.classList.contains('speaking')) {
+            avatar.classList.add('idle');
         }
+    }, 50);
+}
 
-        chatHistory[char].push({ text: message, sender: 'user' });
-        originalAddMessage(message, 'user');
+// ==========================================
+// SEND MESSAGE (FUNGSI UTAMA – GLOBAL)
+// ==========================================
+window.sendMessage = function() {
+    console.log('🚀 sendMessage dipanggil!');
 
-        input.value = '';
-        var button = document.getElementById('sendBtn');
-        if (button) button.disabled = true;
-        input.disabled = true;
+    var input = document.getElementById('userInput');
+    if (!input) {
+        console.warn('❌ userInput tidak ditemukan');
+        return;
+    }
 
-        var avatar = document.getElementById('homeAvatar');
-        var glow = document.getElementById('avatarGlow');
-        if (avatar) avatar.classList.add('speaking');
-        if (glow) glow.classList.add('active');
+    var message = input.value.trim();
+    if (!message) {
+        console.warn('⚠️ Pesan kosong');
+        return;
+    }
 
-        fetch('/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: modifiedMessage, karakter: char })
-        })
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
-            var reply = data.reply || 'Maaf, aku sedang sibuk.';
-            var detectedChar = data.karakter || char;
+    var char = window.currentCharacter || 'shiro';
+    console.log('📤 Mengirim pesan untuk karakter:', char);
 
-            chatHistory[detectedChar].push({ text: reply, sender: detectedChar });
-            originalAddMessage(reply, detectedChar);
+    addMessage(message, 'user');
+    input.value = '';
+    input.disabled = true;
 
-            return fetch('/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: data.suara || reply, karakter: detectedChar })
-            })
-            .then(function(ttsResponse) {
-                if (!ttsResponse.ok) return null;
-                return ttsResponse.blob();
-            })
-            .catch(function() { return null; });
-        })
-        .then(function(blob) {
-            if (blob && blob.size > 0) {
-                var audioUrl = URL.createObjectURL(blob);
-                var audio = new Audio(audioUrl);
-                audio.play().catch(function(e) { console.warn('Audio play error:', e); });
-                audio.onended = function() {
-                    var av = document.getElementById('homeAvatar');
-                    var gl = document.getElementById('avatarGlow');
-                    if (av) av.classList.remove('speaking');
-                    if (gl) gl.classList.remove('active');
-                    URL.revokeObjectURL(audioUrl);
-                };
-                setTimeout(function() {
-                    var av = document.getElementById('homeAvatar');
-                    var gl = document.getElementById('avatarGlow');
-                    if (av) av.classList.remove('speaking');
-                    if (gl) gl.classList.remove('active');
-                }, 5000);
-            } else {
-                var av = document.getElementById('homeAvatar');
-                var gl = document.getElementById('avatarGlow');
-                if (av) av.classList.remove('speaking');
-                if (gl) gl.classList.remove('active');
-            }
-        })
-        .catch(function(error) {
-            console.error('Send message error:', error);
-            originalAddMessage('Maaf, ada masalah koneksi.', 'shiro');
-            var av = document.getElementById('homeAvatar');
-            var gl = document.getElementById('avatarGlow');
-            if (av) av.classList.remove('speaking');
-            if (gl) gl.classList.remove('active');
-        })
-        .finally(function() {
-            input.disabled = false;
-            if (button) button.disabled = false;
-            input.focus();
-        });
-    };
+    var button = document.getElementById('sendBtn');
+    if (button) button.disabled = true;
 
-    console.log('Fitur konteks antar karakter diaktifkan (30% kemungkinan).');
-})();
+    var avatar = document.getElementById('homeAvatar');
+    var glow = document.getElementById('avatarGlow');
+    if (avatar) avatar.classList.add('speaking');
+    if (glow) glow.classList.add('active');
+
+    fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: message, karakter: char })
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        var reply = data.reply || 'Maaf, aku sedang sibuk.';
+        var detectedChar = data.karakter || char;
+        addMessage(reply, detectedChar);
+        putarAudio(reply, detectedChar);
+        input.disabled = false;
+        if (button) button.disabled = false;
+        input.focus();
+        if (avatar) avatar.classList.remove('speaking');
+        if (glow) glow.classList.remove('active');
+    })
+    .catch(function(error) {
+        console.error('❌ Send error:', error);
+        addMessage('Maaf, ada masalah koneksi.', 'shiro');
+        input.disabled = false;
+        if (button) button.disabled = false;
+        input.focus();
+        if (avatar) avatar.classList.remove('speaking');
+        if (glow) glow.classList.remove('active');
+    });
+};
 
 // ==========================================
 // STATUS UPDATE
@@ -399,6 +404,7 @@ async function refreshStatus() {
 }
 
 function updateStatusBar(status) {
+    if (!statusText) return;
     const score = status.affection || 50;
     const level = status.level || 1;
     let moodEmoji, moodText;
@@ -418,63 +424,68 @@ setInterval(refreshStatus, 10000);
 // ==========================================
 // UPLOAD GAMBAR
 // ==========================================
-tombolUpload.addEventListener('click', () => {
-    fileInput.click();
-});
+if (tombolUpload && fileInput) {
+    tombolUpload.addEventListener('click', function() {
+        fileInput.click();
+    });
+} else {
+    console.warn('tombolUpload atau fileInput tidak ditemukan, abaikan upload gambar');
+}
 
-fileInput.addEventListener('change', async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+if (fileInput) {
+    fileInput.addEventListener('change', async function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-        alert('Hanya file gambar yang diizinkan!');
-        fileInput.value = '';
-        return;
-    }
-
-    tambahPesanUser(`📷 Mengirim gambar: ${file.name}`);
-
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'pesan-shiro';
-    loadingDiv.textContent = '💭 Shiro sedang melihat gambarmu...';
-    loadingDiv.id = 'loading-indicator';
-    riwayat.appendChild(loadingDiv);
-    riwayat.scrollTop = riwayat.scrollHeight;
-
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('caption', inputPesan.value.trim() || '');
-    formData.append('karakter', currentCharacter || 'shiro');
-
-    try {
-        const response = await fetch('/upload', {
-            method: 'POST',
-            body: formData
-        });
-        const data = await response.json();
-        const loading = document.getElementById('loading-indicator');
-        if (loading) loading.remove();
-
-        if (data.reply) {
-            tambahPesanShiro(data.reply);
-            putarAudio(data.reply, data.karakter || currentCharacter || 'shiro');
-            if (data.status) {
-                updateStatusBar(data.status);
-            }
-        } else {
-            tambahPesanShiro('Shiro tidak bisa melihat gambar itu... 😢');
+        if (!file.type.startsWith('image/')) {
+            alert('Hanya file gambar yang diizinkan!');
+            fileInput.value = '';
+            return;
         }
-    } catch (error) {
-        const loading = document.getElementById('loading-indicator');
-        if (loading) loading.remove();
-        tambahPesanShiro('Gagal mengirim gambar... 😭');
-        console.error(error);
-    }
 
-    fileInput.value = '';
-    inputPesan.value = '';
-    updateCharCount();
-});
+        tambahPesanUser(`📷 Mengirim gambar: ${file.name}`);
+
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'pesan-shiro';
+        loadingDiv.textContent = '💭 Shiro sedang melihat gambarmu...';
+        loadingDiv.id = 'loading-indicator';
+        if (riwayat) riwayat.appendChild(loadingDiv);
+        if (riwayat) riwayat.scrollTop = riwayat.scrollHeight;
+
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('caption', inputPesan ? inputPesan.value.trim() || '' : '');
+        formData.append('karakter', currentCharacter || 'shiro');
+
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            const loading = document.getElementById('loading-indicator');
+            if (loading) loading.remove();
+
+            if (data.reply) {
+                tambahPesanShiro(data.reply);
+                putarAudio(data.reply, data.karakter || currentCharacter || 'shiro');
+                if (data.status) {
+                    updateStatusBar(data.status);
+                }
+            } else {
+                tambahPesanShiro('Shiro tidak bisa melihat gambar itu... 😢');
+            }
+        } catch (error) {
+            const loading = document.getElementById('loading-indicator');
+            if (loading) loading.remove();
+            tambahPesanShiro('Gagal mengirim gambar... 😭');
+            console.error(error);
+        }
+
+        if (fileInput) fileInput.value = '';
+        if (inputPesan) { inputPesan.value = ''; updateCharCount(); }
+    });
+}
 
 // ==========================================
 // MIKROFON
@@ -486,8 +497,10 @@ function mulaiDengar() {
     }
     if (isRecording) return;
     isRecording = true;
-    tombolMic.style.background = '#ff4444';
-    tombolMic.innerHTML = '<i class="fas fa-stop"></i>';
+    if (tombolMic) {
+        tombolMic.style.background = '#ff4444';
+        tombolMic.innerHTML = '<i class="fas fa-stop"></i>';
+    }
 
     const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.lang = 'id-ID';
@@ -496,14 +509,13 @@ function mulaiDengar() {
 
     recognition.start();
 
-    recognition.onresult = (event) => {
+    recognition.onresult = function(event) {
         const transcript = event.results[0][0].transcript;
-        inputPesan.value = transcript;
-        updateCharCount();
+        if (inputPesan) { inputPesan.value = transcript; updateCharCount(); }
         sendMessage();
     };
 
-    recognition.onerror = (event) => {
+    recognition.onerror = function(event) {
         console.warn('Mic error:', event.error);
         if (event.error === 'not-allowed') {
             alert('Izin mikrofon ditolak. Izinkan akses mikrofon di pengaturan browser.');
@@ -511,7 +523,7 @@ function mulaiDengar() {
         hentikanDengar();
     };
 
-    recognition.onend = () => {
+    recognition.onend = function() {
         hentikanDengar();
     };
 
@@ -524,8 +536,10 @@ function hentikanDengar() {
         delete window._recognition;
     }
     isRecording = false;
-    tombolMic.style.background = '';
-    tombolMic.innerHTML = '<i class="fas fa-microphone"></i>';
+    if (tombolMic) {
+        tombolMic.style.background = '';
+        tombolMic.innerHTML = '<i class="fas fa-microphone"></i>';
+    }
 }
 
 // ==========================================
@@ -557,8 +571,8 @@ function showNotification(karakter, pesan) {
         openChat();
     };
     document.body.appendChild(notif);
-    
-    setTimeout(() => {
+
+    setTimeout(function() {
         if (notif.parentNode) notif.remove();
     }, 10000);
 }
@@ -567,138 +581,148 @@ function showNotification(karakter, pesan) {
 // NAVIGASI CHAT
 // ==========================================
 function openChat() {
-    document.getElementById('homeScreen').style.display = 'none';
-    document.getElementById('chatScreen').style.display = 'flex';
+    var homeScreen = document.getElementById('homeScreen');
+    var chatScreen = document.getElementById('chatScreen');
     var fab = document.getElementById('fabChat');
+    if (homeScreen) homeScreen.style.display = 'none';
+    if (chatScreen) chatScreen.style.display = 'flex';
     if (fab) fab.style.display = 'none';
+
     loadChatHistory(currentCharacter);
-    document.getElementById('userInput').focus();
+
+    var userInput = document.getElementById('userInput');
+    if (userInput) userInput.focus();
 }
 
 function closeChat() {
-    document.getElementById('homeScreen').style.display = 'flex';
-    document.getElementById('chatScreen').style.display = 'none';
+    var homeScreen = document.getElementById('homeScreen');
+    var chatScreen = document.getElementById('chatScreen');
     var fab = document.getElementById('fabChat');
+    if (homeScreen) homeScreen.style.display = 'flex';
+    if (chatScreen) chatScreen.style.display = 'none';
     if (fab) fab.style.display = 'flex';
     refreshStatus();
 }
 
 // ==========================================
-// EVENT LISTENERS
+// EVENT LISTENERS (DIPASANG SETELAH DOM SIAP)
 // ==========================================
-maskot.addEventListener('click', tampilkanObrolan);
-btnTutup.addEventListener('click', sembunyikanObrolan);
-tombolKirim.addEventListener('click', sendMessage);
-inputPesan.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
-inputPesan.addEventListener('input', updateCharCount);
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✅ DOM siap, memasang event listener...');
 
-tombolMic.addEventListener('click', () => {
-    if (isRecording) {
-        hentikanDengar();
+    // Tombol kirim (fallback event listener, tapi onclick sudah di HTML)
+    var sendBtn = document.getElementById('sendBtn');
+    if (sendBtn) {
+        sendBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.sendMessage();
+        });
+        console.log('✅ Event listener tombol kirim terpasang');
     } else {
-        mulaiDengar();
+        console.warn('❌ tombol kirim (sendBtn) tidak ditemukan di HTML');
     }
-});
 
-document.getElementById('sendBtn')?.addEventListener('click', function(e) {
-    e.preventDefault();
-    sendMessage();
-});
-document.getElementById('userInput')?.addEventListener('keypress', function(event) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        sendMessage();
+    // Input enter
+    var userInput = document.getElementById('userInput');
+    if (userInput) {
+        userInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                window.sendMessage();
+            }
+        });
+        console.log('✅ Event listener Enter terpasang');
     }
-});
 
-// ==========================================
-// POLLING: INISIATIF KARAKTER (30 detik)
-// ==========================================
-setInterval(async function() {
-    try {
-        const response = await fetch('/initiative');
-        const data = await response.json();
-        if (data && data.pesan) {
-            console.log('💬 Inisiatif dari', data.karakter, ':', data.pesan);
-            const chatScreen = document.getElementById('chatScreen');
-            if (chatScreen && chatScreen.style.display !== 'none') {
-                addMessage(data.pesan, data.karakter);
-                putarAudio(data.pesan, data.karakter);
+    // Tombol mic
+    var micBtn = document.getElementById('tombol-mic');
+    if (micBtn) {
+        micBtn.addEventListener('click', function() {
+            if (isRecording) {
+                hentikanDengar();
             } else {
-                showNotification(data.karakter, data.pesan);
+                mulaiDengar();
             }
-        }
-    } catch (e) {
-        console.warn('Inisiatif polling error:', e);
+        });
     }
-}, 30000);
 
-// ==========================================
-// POLLING: EVENT (60 detik)
-// ==========================================
-setInterval(async function() {
-    try {
-        const response = await fetch('/event');
-        const data = await response.json();
-        if (data && data.pesan) {
-            console.log('🎉 Event dari', data.karakter, ':', data.pesan);
-            const chatScreen = document.getElementById('chatScreen');
-            if (chatScreen && chatScreen.style.display !== 'none') {
-                addMessage(data.pesan, data.karakter);
-                putarAudio(data.pesan, data.karakter);
-            } else {
-                showNotification(data.karakter, data.pesan);
-            }
-        }
-    } catch (e) {
-        console.warn('Event polling error:', e);
+    // Maskot
+    var mascot = document.getElementById('shiro-mascot');
+    if (mascot) {
+        mascot.addEventListener('click', tampilkanObrolan);
     }
-}, 60000);
 
-// ==========================================
-// POLLING: MOOD / EKSPRESI (10 detik)
-// ==========================================
-setInterval(async function() {
-    try {
-        const response = await fetch(`/mood?karakter=${currentCharacter}`);
-        const data = await response.json();
-        if (data && data.mood) {
-            const avatar = document.getElementById('homeAvatar');
-            if (avatar) {
-                const basePath = `/static/images/expressions/${data.karakter || currentCharacter}`;
-                avatar.src = `${basePath}_${data.mood}.png`;
-            }
-        }
-    } catch (e) {
-        // fallback ke gambar default (abaikan error)
+    // Tutup chat
+    var tutupBtn = document.getElementById('tombol-tutup');
+    if (tutupBtn) {
+        tutupBtn.addEventListener('click', sembunyikanObrolan);
     }
-}, 10000);
+
+    // Upload
+    var uploadBtn = document.querySelector('.btn-upload');
+    if (uploadBtn && fileInput) {
+        uploadBtn.addEventListener('click', function() { fileInput.click(); });
+    }
+
+    // ===== INISIALISASI AVATAR IDLE =====
+    var avatar = document.getElementById('homeAvatar');
+    if (avatar) {
+        avatar.classList.add('idle');
+    }
+
+    // ===== INISIALISASI BLINK =====
+    // Blink setiap 3-5 detik (acak)
+    setInterval(function() {
+        blinkAvatar();
+    }, 3000 + Math.random() * 2000);
+
+    // Inisialisasi lainnya
+    createRain();
+    createGlint();
+    createSakura();
+    createLeaves();
+    createSnow();
+
+    var savedTheme = localStorage.getItem('shiro_theme');
+    if (savedTheme) setTheme(savedTheme);
+    else setTheme('night');
+
+    refreshStatus();
+    console.log('✅ Shiro AI initialized.');
+});
 
 // ==========================================
 // CAMERA (Modal)
 // ==========================================
 function openCamera() {
-    document.getElementById('cameraModal').classList.add('active');
-    var title = currentCharacter === 'shiro' ? 'Kirim Foto untuk Shiro' : 'Kirim Foto untuk Sishin';
-    document.getElementById('cameraTitle').textContent = title;
+    var modal = document.getElementById('cameraModal');
+    if (modal) modal.classList.add('active');
+    var title = document.getElementById('cameraTitle');
+    if (title) title.textContent = currentCharacter === 'shiro' ? 'Kirim Foto untuk Shiro' : 'Kirim Foto untuk Sishin';
 }
 
 function closeCamera() {
-    document.getElementById('cameraModal').classList.remove('active');
-    document.getElementById('imagePreview').innerHTML = '';
-    document.getElementById('imageUpload').value = '';
+    var modal = document.getElementById('cameraModal');
+    if (modal) modal.classList.remove('active');
+    var preview = document.getElementById('imagePreview');
+    if (preview) preview.innerHTML = '';
+    var upload = document.getElementById('imageUpload');
+    if (upload) upload.value = '';
 }
 
-document.getElementById('imageUpload')?.addEventListener('change', function(event) {
-    var preview = document.getElementById('imagePreview');
-    if (this.files && this.files[0]) {
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            preview.innerHTML = '<img src="' + e.target.result + '" alt="Preview">';
-        };
-        reader.readAsDataURL(this.files[0]);
-    }
-});
+var imageUpload = document.getElementById('imageUpload');
+if (imageUpload) {
+    imageUpload.addEventListener('change', function(event) {
+        var preview = document.getElementById('imagePreview');
+        if (this.files && this.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                if (preview) preview.innerHTML = '<img src="' + e.target.result + '" alt="Preview">';
+            };
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+}
 
 async function uploadImage() {
     var fileInput = document.getElementById('imageUpload');
@@ -748,13 +772,15 @@ async function uploadImage() {
 // VOICE (Modal)
 // ==========================================
 function startVoice() {
-    document.getElementById('voiceModal').classList.add('active');
-    var title = currentCharacter === 'shiro' ? 'Rekam Suara untuk Shiro' : 'Rekam Suara untuk Sishin';
-    document.getElementById('voiceTitle').textContent = title;
+    var modal = document.getElementById('voiceModal');
+    if (modal) modal.classList.add('active');
+    var title = document.getElementById('voiceTitle');
+    if (title) title.textContent = currentCharacter === 'shiro' ? 'Rekam Suara untuk Shiro' : 'Rekam Suara untuk Sishin';
 }
 
 function closeVoice() {
-    document.getElementById('voiceModal').classList.remove('active');
+    var modal = document.getElementById('voiceModal');
+    if (modal) modal.classList.remove('active');
     if (isRecording) toggleRecording();
 }
 
@@ -773,13 +799,15 @@ async function toggleRecording() {
             recognition.continuous = false;
             recognition.interimResults = false;
             isRecording = true;
-            button.innerHTML = '<i class="fas fa-stop"></i> Mendengarkan...';
-            button.classList.add('recording');
-            text.textContent = 'Mendengarkan... bicara sekarang.';
+            if (button) {
+                button.innerHTML = '<i class="fas fa-stop"></i> Mendengarkan...';
+                button.classList.add('recording');
+            }
+            if (text) text.textContent = 'Mendengarkan... bicara sekarang.';
 
             recognition.onresult = async function(event) {
                 var transcript = event.results[0][0].transcript;
-                text.textContent = 'Kamu bilang: "' + transcript + '"';
+                if (text) text.textContent = 'Kamu bilang: "' + transcript + '"';
                 try {
                     var response = await fetch('/voice', {
                         method: 'POST',
@@ -809,11 +837,13 @@ async function toggleRecording() {
                     }
                 } catch (error) {
                     console.error('Voice chat error:', error);
-                    text.textContent = 'Gagal mengirim suara.';
+                    if (text) text.textContent = 'Gagal mengirim suara.';
                 }
                 isRecording = false;
-                button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
-                button.classList.remove('recording');
+                if (button) {
+                    button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
+                    button.classList.remove('recording');
+                }
             };
 
             recognition.onerror = function(event) {
@@ -822,16 +852,20 @@ async function toggleRecording() {
                     alert('Akses mikrofon ditolak.');
                 }
                 isRecording = false;
-                button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
-                button.classList.remove('recording');
-                text.textContent = 'Tekan tombol untuk mulai bicara.';
+                if (button) {
+                    button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
+                    button.classList.remove('recording');
+                }
+                if (text) text.textContent = 'Tekan tombol untuk mulai bicara.';
             };
 
             recognition.onend = function() {
                 if (isRecording) {
                     isRecording = false;
-                    button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
-                    button.classList.remove('recording');
+                    if (button) {
+                        button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
+                        button.classList.remove('recording');
+                    }
                 }
             };
 
@@ -847,9 +881,11 @@ async function toggleRecording() {
             delete window._recognition;
         }
         isRecording = false;
-        button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
-        button.classList.remove('recording');
-        text.textContent = 'Tekan tombol untuk mulai bicara.';
+        if (button) {
+            button.innerHTML = '<i class="fas fa-microphone"></i> Mulai Rekam';
+            button.classList.remove('recording');
+        }
+        if (text) text.textContent = 'Tekan tombol untuk mulai bicara.';
     }
 }
 
@@ -857,15 +893,17 @@ async function toggleRecording() {
 // SAWER
 // ==========================================
 function openSawer() {
-    document.getElementById('sawerModal').classList.add('active');
-    var title = currentCharacter === 'shiro' ? 'Sawer Shiro' : 'Sawer Sishin';
-    var desc = currentCharacter === 'shiro' ? 'Dukung Shiro dengan saweran virtual.' : 'Dukung Sishin dengan saweran virtual.';
-    document.getElementById('sawerTitle').textContent = title;
-    document.getElementById('sawerDesc').textContent = desc;
+    var modal = document.getElementById('sawerModal');
+    if (modal) modal.classList.add('active');
+    var title = document.getElementById('sawerTitle');
+    if (title) title.textContent = currentCharacter === 'shiro' ? 'Sawer Shiro' : 'Sawer Sishin';
+    var desc = document.getElementById('sawerDesc');
+    if (desc) desc.textContent = currentCharacter === 'shiro' ? 'Dukung Shiro dengan saweran virtual.' : 'Dukung Sishin dengan saweran virtual.';
 }
 
 function closeSawer() {
-    document.getElementById('sawerModal').classList.remove('active');
+    var modal = document.getElementById('sawerModal');
+    if (modal) modal.classList.remove('active');
 }
 
 function sawer(amount) {
@@ -878,8 +916,10 @@ function sawer(amount) {
         'Ehehe~ Kamu perhatian banget.'
     ];
     var randomResponse = responses[Math.floor(Math.random() * responses.length)];
-    messageEl.textContent = randomResponse + ' (+' + amount + ' poin afeksi untuk ' + charName + ')';
-    messageEl.style.color = '#ff8a9b';
+    if (messageEl) {
+        messageEl.textContent = randomResponse + ' (+' + amount + ' poin afeksi untuk ' + charName + ')';
+        messageEl.style.color = '#ff8a9b';
+    }
 
     fetch('/sawer', {
         method: 'POST',
@@ -889,7 +929,8 @@ function sawer(amount) {
     .then(function(response) { return response.json(); })
     .then(function(data) {
         if (data.affection) {
-            document.getElementById('affectionDisplay').textContent = data.affection;
+            var affDisplay = document.getElementById('affectionDisplay');
+            if (affDisplay) affDisplay.textContent = data.affection;
         }
         if (data.reply) addMessage(data.reply, currentCharacter);
     })
@@ -898,12 +939,13 @@ function sawer(amount) {
     });
 
     setTimeout(function() {
-        messageEl.textContent = '';
+        if (messageEl) messageEl.textContent = '';
     }, 5000);
 }
 
 function sawerCustom() {
     var input = document.getElementById('sawerCustom');
+    if (!input) return;
     var value = parseInt(input.value);
     if (!value || value < 100) {
         alert('Masukkan nominal minimal Rp 100.');
@@ -921,9 +963,6 @@ function toggleThemeMenu() {
     if (menu) menu.classList.toggle('active');
 }
 
-// ==========================================
-// SET THEME (DIPERBAIKI UNTUK EFEK MUSIM)
-// ==========================================
 function setTheme(theme) {
     var bg = document.getElementById('bgLayer');
     if (!bg) return;
@@ -952,51 +991,20 @@ function setTheme(theme) {
         rain: document.getElementById('bgRain')
     };
 
-    // Nonaktifkan semua efek
     for (var key in effects) {
         if (effects[key]) effects[key].classList.remove('active');
     }
 
-    // Aktifkan efek sesuai tema dan reset animasi
     switch (theme) {
-        case 'morning':
-            if (effects.sunRay) effects.sunRay.classList.add('active');
-            break;
-        case 'afternoon':
-            if (effects.glint) effects.glint.classList.add('active');
-            break;
-        case 'evening':
-            if (effects.sunsetGlow) effects.sunsetGlow.classList.add('active');
-            break;
-        case 'spring':
-            if (effects.sakura) {
-                effects.sakura.classList.add('active');
-                createSakura(); // Reset bunga sakura
-            }
-            break;
-        case 'summer':
-            if (effects.heatHaze) effects.heatHaze.classList.add('active');
-            break;
-        case 'autumn':
-            if (effects.leaf) {
-                effects.leaf.classList.add('active');
-                createLeaves(); // Reset daun maple
-            }
-            break;
-        case 'winter':
-            if (effects.snow) {
-                effects.snow.classList.add('active');
-                createSnow(); // Reset salju
-            }
-            break;
-        case 'rain':
-            if (effects.rain) {
-                effects.rain.classList.add('active');
-                createRain(); // Reset hujan
-            }
-            break;
-        default:
-            break;
+        case 'morning': if (effects.sunRay) effects.sunRay.classList.add('active'); break;
+        case 'afternoon': if (effects.glint) effects.glint.classList.add('active'); break;
+        case 'evening': if (effects.sunsetGlow) effects.sunsetGlow.classList.add('active'); break;
+        case 'spring': if (effects.sakura) { effects.sakura.classList.add('active'); createSakura(); } break;
+        case 'summer': if (effects.heatHaze) effects.heatHaze.classList.add('active'); break;
+        case 'autumn': if (effects.leaf) { effects.leaf.classList.add('active'); createLeaves(); } break;
+        case 'winter': if (effects.snow) { effects.snow.classList.add('active'); createSnow(); } break;
+        case 'rain': if (effects.rain) { effects.rain.classList.add('active'); createRain(); } break;
+        default: break;
     }
 }
 
@@ -1083,7 +1091,7 @@ function showMemori() {
 }
 
 // ==========================================
-// THEME EFFECTS (Rain, Glint, Sakura, dll.)
+// THEME EFFECTS
 // ==========================================
 function createRain() {
     var container = document.getElementById('bgRain');
@@ -1170,45 +1178,7 @@ document.getElementById('homeAvatar')?.addEventListener('click', function() {
 });
 
 // ==========================================
-// EVENT LISTENERS
+// INITIALIZATION (FALLBACK)
 // ==========================================
-// (sudah ada di atas)
-
-// ==========================================
-// INITIALIZATION
-// ==========================================
-document.addEventListener('DOMContentLoaded', function() {
-    createRain();
-    createGlint();
-    createSakura();
-    createLeaves();
-    createSnow();
-
-    var savedTheme = localStorage.getItem('shiro_theme');
-    if (savedTheme) {
-        setTheme(savedTheme);
-    } else {
-        setTheme('night');
-    }
-
-    // Inisialisasi karakter dari tombol aktif
-    var activeBtn = document.querySelector('.switch-btn.active');
-    if (activeBtn) {
-        var initChar = activeBtn.id === 'btnShiro' ? 'shiro' : 'sishin';
-        if (initChar !== currentCharacter) {
-            currentCharacter = initChar;
-            console.log('🔁 Inisialisasi karakter dari tombol aktif:', currentCharacter);
-        }
-    }
-    var chatName = document.getElementById('chatCharName');
-    if (chatName) {
-        chatName.textContent = currentCharacter === 'shiro' ? 'Shiro' : 'Sishin';
-    }
-
-    refreshStatus();
-    console.log('Shiro AI initialized.');
-    console.log('Chat terpisah + konteks silang 30% aktif.');
-});
-
 console.log('Shiro AI initialized.');
 console.log('Fitur konteks antar karakter diaktifkan (30% kemungkinan).');

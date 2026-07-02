@@ -362,13 +362,23 @@ html, body {
     flex-shrink: 0;
 }
 
+/* ==========================================
+   AVATAR - PERBAIKAN GLITCH & BLINK
+   ========================================== */
+
 .avatar {
     width: 100%;
     height: 100%;
     object-fit: cover;
     border-radius: 50%;
     border: 3px solid transparent;
-    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 0.3s ease,
+                border-color 0.4s ease;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    -webkit-font-smoothing: antialiased;
+    image-rendering: auto;
 }
 
 .avatar.shiro-mode {
@@ -381,78 +391,53 @@ html, body {
     box-shadow: 0 0 30px rgba(74, 222, 128, 0.15);
 }
 
+/* Idle animation: bergoyang lembut */
+.avatar.idle {
+    animation: idleFloat 2.5s ease-in-out infinite;
+}
+
+@keyframes idleFloat {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-6px) rotate(1deg); }
+}
+
+/* Speak animation: avatar bergerak lebih aktif */
 .avatar.speaking {
-    animation: speak 0.25s ease-in-out infinite alternate;
+    animation: speakBounce 0.25s ease-in-out infinite alternate !important;
 }
 
-@keyframes speak {
-    0% { transform: scale(1) rotate(-2deg); }
-    100% { transform: scale(1.06) rotate(2deg); }
+@keyframes speakBounce {
+    0% { transform: translateY(0px) scale(1) rotate(0deg); }
+    100% { transform: translateY(-8px) scale(1.02) rotate(1deg); }
 }
 
-.avatar-ring {
+/* ===== BLINK OVERLAY - PERBAIKAN (tanpa mix-blend-mode & tanpa warna hitam) ===== */
+.avatar-container .blink-overlay {
     position: absolute;
-    top: -6px;
-    left: -6px;
-    right: -6px;
-    bottom: -6px;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 182, 193, 0.04);
-    animation: ringPulse 3s ease-in-out infinite;
-    transition: border-color 0.5s ease;
-}
-
-.avatar-ring.shiro-ring {
-    border-color: rgba(255, 107, 138, 0.15);
-}
-
-.avatar-ring.sishin-ring {
-    border-color: rgba(74, 222, 128, 0.15);
-}
-
-@keyframes ringPulse {
-    0%, 100% { transform: scale(1); opacity: 0.2; }
-    50% { transform: scale(1.08); opacity: 0.5; }
-}
-
-.avatar-glow {
-    position: absolute;
-    top: -14px;
-    left: -14px;
-    right: -14px;
-    bottom: -14px;
-    border-radius: 50%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
     opacity: 0;
-    transition: all 0.5s ease;
-}
-
-.avatar-glow.shiro-glow {
-    background: radial-gradient(circle, rgba(255, 107, 138, 0.12), transparent 70%);
-}
-
-.avatar-glow.sishin-glow {
-    background: radial-gradient(circle, rgba(74, 222, 128, 0.12), transparent 70%);
-}
-
-.avatar-glow.active {
-    opacity: 1;
-    animation: glowPulse 1.2s ease-in-out infinite;
-}
-
-@keyframes glowPulse {
-    0%, 100% { transform: scale(0.95); opacity: 0.2; }
-    50% { transform: scale(1.12); opacity: 0.6; }
-}
-
-.avatar-status {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    width: 14px;
-    height: 14px;
+    pointer-events: none;
     border-radius: 50%;
-    border: 2px solid #1a1a2e;
-    background: #4ade80;
+    z-index: 5;
+    clip-path: inset(0 0 0 0);
+    transition: opacity 0.05s ease;
+}
+
+.avatar-container .blink-overlay.active {
+    opacity: 1;
+    clip-path: inset(30% 10% 30% 10%);
+    animation: blinkFlash 0.2s ease 1;
+}
+
+@keyframes blinkFlash {
+    0% { clip-path: inset(0 0 0 0); opacity: 0; }
+    20% { clip-path: inset(30% 10% 30% 10%); opacity: 1; }
+    80% { clip-path: inset(30% 10% 30% 10%); opacity: 1; }
+    100% { clip-path: inset(0 0 0 0); opacity: 0; }
 }
 
 /* ==========================================

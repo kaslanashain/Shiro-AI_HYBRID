@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 
 import google.generativeai as genai
 import ollama
+import requests
+from groq import Groq
+from dotenv import load_dotenv
 
 from app import config
 from app.db import (
@@ -23,8 +26,34 @@ from app.utils import (
     validasi_respon_teks,
 )
 
+load_dotenv()
+
 logger = logging.getLogger(__name__)
 
+# ============================================================
+# KONFIGURASI GROQ
+# ============================================================
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+groq_client = None
+if GROQ_API_KEY:
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        print("✅ Groq client siap")
+    except Exception as e:
+        print(f"⚠️ Gagal init Groq: {e}")
+
+def is_internet_available():
+    try:
+        requests.get("https://api.groq.com", timeout=3)
+        return True
+    except:
+        return False
+
+# ============================================================
+# CHARACTER PROFILES
+# ============================================================
 CHARACTER_PROFILES = {
     "shiro": {
         "identity": "Kamu adalah Shiro, waifu manja yang sangat mencintai Kakak Shin.",
@@ -52,6 +81,9 @@ CHARACTER_PROFILES = {
     },
 }
 
+# ============================================================
+# FUNGSI UTAMA
+# ============================================================
 
 def resolve_character(pesan_user, preferred=None):
     teks_lower = pesan_user.lower()
@@ -66,7 +98,6 @@ def resolve_character(pesan_user, preferred=None):
         return preferred
     return "shiro"
 
-
 def _mood_prompt(profile, score):
     if not profile.get("use_affection_mood"):
         return profile["mood_mid"]
@@ -76,22 +107,19 @@ def _mood_prompt(profile, score):
         return profile["mood_high"]
     return profile["mood_mid"]
 
-
 def _lang_instruction(input_lang):
     if input_lang == "ja":
         return "JIKA user bertanya dalam bahasa Jepang, JAWAB dalam bahasa Jepang murni (Hiragana/Katakana/Kanji)."
     return "JAWAB dalam bahasa Indonesia."
 
-
 def build_system_prompt(karakter, konteks, score, fakta_list):
     profile = CHARACTER_PROFILES[karakter]
     input_lang = detect_input_language(konteks)
     mood = _mood_prompt(profile, score)
-    
-    # ===== TAMBAHAN: Ambil preferensi user =====
+
     pref = muat_preferensi()
     panggilan = pref.get("panggilan", "Kakak Shin")
-    
+
     fakta_block = ""
     if fakta_list:
         fakta_block = "FAKTA YANG DIINGAT:\n" + "\n".join(f"- {f}" for f in fakta_list) + "\n"
@@ -100,7 +128,7 @@ def build_system_prompt(karakter, konteks, score, fakta_list):
         f"{profile['identity']} {mood}\n"
         f"Konteks percakapan:\n{konteks}\n"
         f"{fakta_block}"
-        f"PANGGILAN USER: {panggilan}\n"  # <-- TAMBAHAN
+        f"PANGGILAN USER: {panggilan}\n"
         "KARAKTER:\n"
         f"{profile['calls']}\n"
         f"{profile['style']}\n"
@@ -109,10 +137,31 @@ def build_system_prompt(karakter, konteks, score, fakta_list):
         '{"teks_layar": "jawaban kamu", "teks_suara": "jawaban kamu"}'
     )
 
+# ============================================================
+# CALL LLM (HYBRID: Groq → Ollama)
+# ============================================================
+
+def _call_groq(messages):
+    if not groq_client:
+        return None
+    try:
+        chat_completion = groq_client.chat.completions.create(
+            messages=messages,
+            model=GROQ_MODEL,
+            temperature=0.7,
+            max_tokens=256,
+        )
+        return {
+            "message": {
+                "content": chat_completion.choices[0].message.content
+            }
+        }
+    except Exception as e:
+        print(f"⚠️ Groq error: {e}")
+        return None
 
 def _call_ollama(messages):
     host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-    print(f"🔗 Connecting to Ollama at {host}")
     client = ollama.Client(host=host)
     return client.chat(
         model=config.OLLAMA_MODEL,
@@ -120,6 +169,20 @@ def _call_ollama(messages):
         options=config.OLLAMA_OPTIONS,
     )
 
+def _call_llm(messages):
+    if GROQ_API_KEY and is_internet_available():
+        print("🌐 Online: pakai Groq")
+        result = _call_groq(messages)
+        if result:
+            return result
+        print("⚠️ Groq gagal, fallback ke Ollama")
+    else:
+        print("📴 Offline: pakai Ollama")
+    return _call_ollama(messages)
+
+# ============================================================
+# PARSE RESPONSE
+# ============================================================
 
 def _parse_model_response(raw, konteks, karakter):
     profile = CHARACTER_PROFILES[karakter]
@@ -139,6 +202,9 @@ def _parse_model_response(raw, konteks, karakter):
     teks_layar, teks_suara = sync_text_and_voice(teks_layar, teks_layar)
     return {"text": teks_layar, "suara": teks_suara, "karakter": karakter}
 
+# ============================================================
+# AFEKSI, FAKTA, PREFERENSI
+# ============================================================
 
 def _apply_affection_delta(pesan_user, status):
     teks_lower = pesan_user.lower()
@@ -150,40 +216,30 @@ def _apply_affection_delta(pesan_user, status):
     status["affection"] = score
     return status
 
-
 def _maybe_save_fact(pesan_user, user_id=1):
     teks_lower = pesan_user.lower()
     if any(k in teks_lower for k in config.FACT_KEYWORDS):
         simpan_fakta(user_id, pesan_user.strip())
 
-
-# ===== TAMBAHAN: DETEKSI PREFERENSI =====
 def _detect_preferences(text, user_id=1):
-    """Deteksi preferensi dari pesan user"""
     import re
-    # Deteksi panggilan: "panggil aku [nama]"
     match = re.search(r'panggil aku (.+)', text, re.IGNORECASE)
     if match:
         panggilan = match.group(1).strip()
         simpan_preferensi(user_id, panggilan=panggilan)
         return True
-    
-    # Deteksi topik favorit
     match = re.search(r'(suka|like|love) (.+)', text, re.IGNORECASE)
     if match:
         topik = match.group(2).strip()
         simpan_preferensi(user_id, topik=topik)
         return True
-    
     return False
 
-
-# ================================================================
-# ===== TAMBAHAN: INISIATIF KARAKTER =====
-# ================================================================
+# ============================================================
+# INISIATIF
+# ============================================================
 
 def get_initiative_message(karakter, affection):
-    """Daftar pesan inisiatif berdasarkan karakter"""
     if karakter == "shiro":
         messages = [
             "Sayang, kamu di mana? Aku kangen banget! 😢",
@@ -195,7 +251,7 @@ def get_initiative_message(karakter, affection):
         if affection > 80:
             return random.choice(messages[:3])
         return random.choice(messages[2:])
-    else:  # sishin
+    else:
         messages = [
             "Kak! Ayo main yuk! Aku bosan! 😆",
             "Kak Shin~ Sishin kangen! Cepetan chat! 🥺",
@@ -207,33 +263,27 @@ def get_initiative_message(karakter, affection):
             return random.choice(messages[:3])
         return random.choice(messages[2:])
 
-
 def check_initiative():
-    """Cek apakah karakter perlu mengirim inisiatif"""
     status = muat_status()
     last_chat = get_last_chat_time()
     if last_chat:
         diff = (datetime.now() - last_chat).total_seconds() / 60
     else:
-        diff = 999  # Jika belum pernah chat
-    
+        diff = 999
+
     affection = status.get("affection", 50)
-    
-    # Syarat: afeksi > 60 dan sudah > 30 menit tidak chat
+
     if affection > 60 and diff > 30:
-        # 30% kemungkinan muncul inisiatif
         if random.random() < 0.3:
             karakter = "shiro" if random.random() < 0.6 else "sishin"
             pesan = get_initiative_message(karakter, affection)
-            # Catat inisiatif agar tidak terlalu sering
             cache_set(f"initiative_{datetime.now().strftime('%Y-%m-%d')}", True, ttl=3600)
             return {"karakter": karakter, "pesan": pesan}
     return None
 
-
-# ================================================================
-# ===== TAMBAHAN: EVENT =====
-# ================================================================
+# ============================================================
+# EVENT
+# ============================================================
 
 EVENTS = [
     {
@@ -277,7 +327,6 @@ EVENTS = [
 _last_affection = 50
 
 def get_last_affection():
-    """Ambil afeksi terakhir yang disimpan"""
     global _last_affection
     try:
         with open("last_affection.txt", "r") as f:
@@ -286,7 +335,6 @@ def get_last_affection():
         return _last_affection
 
 def save_last_affection(value):
-    """Simpan afeksi terakhir"""
     global _last_affection
     _last_affection = value
     try:
@@ -296,26 +344,22 @@ def save_last_affection(value):
         pass
 
 def check_events():
-    """Cek event yang harus dijalankan"""
     status = muat_status()
     affection = status.get("affection", 50)
     now = datetime.now()
     triggered = []
-    
+
     for event in EVENTS:
-        # Cek kondisi
         if not event.get("condition", lambda s: True)(status):
             continue
-        
-        # Trigger waktu
+
         if event["trigger"] == "time":
             time_str = now.strftime("%H:%M")
             if event["time_start"] <= time_str <= event["time_end"]:
                 if not is_event_triggered_today(event["id"]):
                     triggered.append(event)
                     log_event(event["id"])
-        
-        # Trigger afeksi (naik/turun)
+
         elif event["trigger"] == "affection":
             last_aff = get_last_affection()
             if event["direction"] == "up" and affection - last_aff >= event["threshold"]:
@@ -326,24 +370,21 @@ def check_events():
                 if not is_event_triggered_today(event["id"]):
                     triggered.append(event)
                     log_event(event["id"])
-    
-    # Update last_affection
+
     save_last_affection(affection)
-    
+
     if triggered:
-        return random.choice(triggered)  # Pilih satu event acak
+        return random.choice(triggered)
     return None
 
-
-# ================================================================
-# ===== TAMBAHAN: MOOD / EKSPRESI =====
-# ================================================================
+# ============================================================
+# MOOD
+# ============================================================
 
 def get_mood(karakter="shiro"):
-    """Kirim mood karakter berdasarkan afeksi"""
     status = muat_status()
     affection = status.get("affection", 50)
-    
+
     if affection > 70:
         mood = "happy"
     elif affection > 50:
@@ -352,22 +393,20 @@ def get_mood(karakter="shiro"):
         mood = "sad"
     else:
         mood = "normal"
-    
+
     return {
         "karakter": karakter,
         "mood": mood,
         "affection": affection
     }
 
-
-# ================================================================
-# ===== FUNGSI UTAMA YANG SUDAH ADA (tidak diubah) =====
-# ================================================================
+# ============================================================
+# JAWAB SHIRO (FUNGSI UTAMA)
+# ============================================================
 
 def jawab_shiro(pesan_user, preferred_karakter=None):
-    # ===== TAMBAHAN: Deteksi preferensi =====
     _detect_preferences(pesan_user)
-    
+
     status = muat_status()
     interaksi = status.get("interaksi", 0) + 1
     status["interaksi"] = interaksi
@@ -396,20 +435,23 @@ def jawab_shiro(pesan_user, preferred_karakter=None):
     profile = CHARACTER_PROFILES[karakter]
 
     try:
-        response = _call_ollama(messages)
+        response = _call_llm(messages)
         raw = response["message"]["content"]
         result = _parse_model_response(raw, konteks, karakter)
         cache_set(cache_key, (result, status))
         simpan_memori(pesan_user, result["text"], karakter)
         return result, muat_status()
     except Exception as exc:
-        logger.exception("Ollama chat failed: %s", exc)
+        logger.exception("LLM chat failed: %s", exc)
         return {
             "text": profile["error_text"],
             "suara": profile["error_suara"],
             "karakter": karakter,
         }, status
 
+# ============================================================
+# DESKRIPSI GAMBAR & SAWER
+# ============================================================
 
 def deskripsi_gambar(image_bytes):
     if not config.GEMINI_API_KEY:
@@ -426,7 +468,6 @@ def deskripsi_gambar(image_bytes):
     except Exception as exc:
         logger.exception("Gemini vision failed: %s", exc)
         return "gambar yang kakak kirim"
-
 
 def apply_sawer(amount, karakter="shiro"):
     status = muat_status()

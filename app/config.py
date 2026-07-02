@@ -8,6 +8,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# ===== TAMBAHAN UNTUK GROQ =====
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 VOICEVOX_URL = os.environ.get("VOICEVOX_URL", "http://localhost:50021")
 
 FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
