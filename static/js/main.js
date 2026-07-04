@@ -5,7 +5,121 @@
 // ==========================================
 // GLOBAL VARIABLES
 // ==========================================
-var currentCharacter = 'shiro';
+// Character + affection state: static/js/core/character-state.js, affection-engine.js
+
+var AVATAR_EXPRESSIONS = {
+    shiro: {
+        sad: '/static/images/expressions/shiro_sad.png',
+        happy: '/static/images/expressions/shiro_happy.png',
+        default: '/static/images/shiro.png'
+    },
+    sishin: {
+        sad: '/static/images/expressions/sishin_sad.png',
+        happy: '/static/images/expressions/sishin_normal.png',
+        default: '/static/images/sishin.png'
+    }
+};
+
+function getActiveCharacter() {
+    if (window.CharacterState) return CharacterState.get();
+    return window.currentCharacter || 'shiro';
+}
+
+function getActiveAffection() {
+    if (window.AffectionEngine) return AffectionEngine.getScore();
+    return typeof window.currentAffection === 'number' ? window.currentAffection : 50;
+}
+
+function getAvatarExpressionSrc(char, affection) {
+    if (window.AssetManager) {
+        var resolved = AssetManager.resolve({
+            character: char,
+            affection: affection,
+            context: 'home'
+        });
+        return resolved.url;
+    }
+    char = window.CharacterState ? CharacterState.normalize(char) : (char === 'sishin' ? 'sishin' : 'shiro');
+    var s = typeof affection === 'number' ? affection : getActiveAffection();
+    var paths = AVATAR_EXPRESSIONS[char];
+    var threshold = window.AffectionEngine ? AffectionEngine.SAD_THRESHOLD : 40;
+    return s < threshold ? paths.sad : paths.happy;
+}
+
+function applyHomeAvatarExpression(char, affection) {
+    var avatar = document.getElementById('homeAvatar');
+    if (!avatar) return;
+
+    char = window.CharacterState ? CharacterState.normalize(char) : (char === 'sishin' ? 'sishin' : 'shiro');
+    var score = typeof affection === 'number' ? affection : getActiveAffection();
+    var src, fallback, tier;
+
+    if (window.AssetManager) {
+        var resolved = AssetManager.resolve({
+            character: char,
+            affection: score,
+            context: 'home'
+        });
+        src = resolved.url;
+        fallback = resolved.fallback;
+        tier = resolved.tier;
+    } else {
+        src = getAvatarExpressionSrc(char, score);
+        fallback = AVATAR_EXPRESSIONS[char].default;
+        var threshold = window.AffectionEngine ? AffectionEngine.SAD_THRESHOLD : 40;
+        tier = score < threshold ? 'sad' : 'happy';
+    }
+
+    if (avatar.getAttribute('data-expression-src') === src) return;
+
+    avatar.onerror = function() {
+        avatar.onerror = null;
+        avatar.src = fallback;
+        avatar.setAttribute('data-expression-src', fallback);
+    };
+    avatar.src = src;
+    avatar.setAttribute('data-expression-src', src);
+    avatar.setAttribute('data-affection-tier', tier);
+}
+
+function setAffectionScore(score) {
+    if (window.AffectionEngine) {
+        AffectionEngine.setScore(score);
+    }
+}
+
+function initSystemAwarenessWiring() {
+    if (!window.AffectionEngine || !window.CharacterState) {
+        console.warn('[SystemAwareness] Core modules not loaded — using legacy fallbacks');
+        return;
+    }
+
+    AffectionEngine.onChange(function(evt) {
+        var affDisplay = document.getElementById('affectionDisplay');
+        if (affDisplay) affDisplay.textContent = evt.score;
+        var chatStatus = document.getElementById('chatCharStatus');
+        if (chatStatus) chatStatus.textContent = 'Afeksi ' + evt.score + '%';
+        if (SystemAwareness.canApplyHomeExpression()) {
+            applyHomeAvatarExpression(CharacterState.get(), evt.score);
+        }
+    });
+
+    CharacterState.onChange(function(char) {
+        if (SystemAwareness.canApplyHomeExpression()) {
+            applyHomeAvatarExpression(char, AffectionEngine.getScore());
+        }
+        if (SystemAwareness.canApplyCallOverlay() && typeof updateWACallCharacter === 'function') {
+            updateWACallCharacter(char);
+        }
+        if (typeof updateVtuberPttHint === 'function') updateVtuberPttHint();
+    });
+
+    applyHomeAvatarExpression(CharacterState.get(), AffectionEngine.getScore());
+}
+
+window.setAffectionScore = setAffectionScore;
+window.applyHomeAvatarExpression = applyHomeAvatarExpression;
+initSystemAwarenessWiring();
 var chatHistory = { shiro: [], sishin: [] };
 var bgmIndex = 0;
 // ===== SESUAIKAN DENGAN FILE MP3 ANDA (MAKS 9) =====
@@ -247,10 +361,12 @@ async function putarAudio(teks, karakter) {
             audioPlayer.src = '';
         }
         audioPlayer = new Audio(url);
+        if (typeof startLive2DLipSync === 'function') startLive2DLipSync(audioPlayer);
         audioPlayer.play();
 
         audioPlayer.onended = function() {
             URL.revokeObjectURL(url);
+            if (typeof stopLive2DLipSync === 'function') stopLive2DLipSync();
             // Kembali ke idle setelah bicara selesai
             if (avatar) {
                 avatar.classList.remove('speaking');
@@ -260,10 +376,11 @@ async function putarAudio(teks, karakter) {
 
         // Fallback: jika audio gagal, kembali ke idle setelah 5 detik
         setTimeout(function() {
-            if (avatar) {
+            if (avatar && avatar.classList.contains('speaking')) {
                 avatar.classList.remove('speaking');
                 avatar.classList.add('idle');
             }
+            if (typeof stopLive2DLipSync === 'function') stopLive2DLipSync();
         }, 5000);
 
     } catch (error) {
@@ -279,7 +396,8 @@ async function putarAudio(teks, karakter) {
 // SWITCH CHARACTER (DIPERBAIKI - MEMPERTAHANKAN IDLE)
 // ==========================================
 function switchCharacter(char) {
-    if (char === currentCharacter) return;
+    if (window.CharacterState) char = CharacterState.normalize(char);
+    if (char === getActiveCharacter()) return;
 
     var avatar = document.getElementById('homeAvatar');
     var name = document.getElementById('homeCharName');
@@ -292,10 +410,9 @@ function switchCharacter(char) {
 
     if (char === 'shiro') {
         if (avatar) {
-            avatar.src = '/static/images/shiro.png';
             avatar.classList.remove('shiro-mode', 'sishin-mode');
             avatar.classList.add('shiro-mode');
-            // Jika tidak sedang bicara, tambahkan idle
+            applyHomeAvatarExpression('shiro', getActiveAffection());
             if (!avatar.classList.contains('speaking')) {
                 avatar.classList.add('idle');
             }
@@ -306,7 +423,7 @@ function switchCharacter(char) {
         if (btnSishin) btnSishin.classList.remove('active');
         if (ring) ring.className = 'avatar-ring shiro-ring';
         if (glow) glow.className = 'avatar-glow shiro-glow';
-        if (status) status.textContent = 'Afeksi 50%';
+        if (status) status.textContent = 'Afeksi ' + getActiveAffection() + '%';
         var cameraTitle = document.getElementById('cameraTitle');
         if (cameraTitle) cameraTitle.textContent = 'Kirim Foto untuk Shiro';
         var voiceTitle = document.getElementById('voiceTitle');
@@ -317,9 +434,9 @@ function switchCharacter(char) {
         if (sawerDesc) sawerDesc.textContent = 'Dukung Shiro dengan saweran virtual.';
     } else {
         if (avatar) {
-            avatar.src = '/static/images/sishin.png';
             avatar.classList.remove('shiro-mode', 'sishin-mode');
             avatar.classList.add('sishin-mode');
+            applyHomeAvatarExpression('sishin', getActiveAffection());
             if (!avatar.classList.contains('speaking')) {
                 avatar.classList.add('idle');
             }
@@ -330,7 +447,7 @@ function switchCharacter(char) {
         if (btnShiro) btnShiro.classList.remove('active');
         if (ring) ring.className = 'avatar-ring sishin-ring';
         if (glow) glow.className = 'avatar-glow sishin-glow';
-        if (status) status.textContent = 'Afeksi 50%';
+        if (status) status.textContent = 'Afeksi ' + getActiveAffection() + '%';
         var cameraTitle = document.getElementById('cameraTitle');
         if (cameraTitle) cameraTitle.textContent = 'Kirim Foto untuk Sishin';
         var voiceTitle = document.getElementById('voiceTitle');
@@ -341,10 +458,34 @@ function switchCharacter(char) {
         if (sawerDesc) sawerDesc.textContent = 'Dukung Sishin dengan saweran virtual.';
     }
 
-    currentCharacter = char;
+    if (window.CharacterState) {
+        CharacterState.set(char);
+    } else {
+        window.currentCharacter = char;
+    }
     var chatName = document.getElementById('chatCharName');
     if (chatName) chatName.textContent = char === 'shiro' ? 'Shiro' : 'Sishin';
     console.log('Switched to:', char);
+
+    if (typeof vtuberMode !== 'undefined' && vtuberMode) {
+        vtuberWaitingForServer = false;
+        vtuberPttActive = false;
+        if (vtuberRecognition) {
+            try { vtuberRecognition.abort(); } catch (e) {}
+            vtuberRecognition = null;
+        }
+        var vBtn = document.getElementById('btnVTuber');
+        if (vBtn) {
+            vBtn.classList.remove('recording');
+            vBtn.style.background = '#ff6b8a';
+            vBtn.style.color = '#fff';
+            var vSpan = vBtn.querySelector('span');
+            if (vSpan) vSpan.textContent = 'Berhenti';
+        }
+        updateVtuberPttHint();
+        showPttHint(true);
+        if (typeof updateWACallCharacter === 'function') updateWACallCharacter(char);
+    }
 
     var chatScreen = document.getElementById('chatScreen');
     if (chatScreen && chatScreen.style.display !== 'none') {
@@ -404,6 +545,7 @@ window.sendMessage = function() {
         var reply = data.reply || 'Maaf, aku sedang sibuk.';
         var detectedChar = data.karakter || char;
         addMessage(reply, detectedChar);
+        if (data.status) updateStatusBar(data.status);
         putarAudio(reply, detectedChar);
         input.disabled = false;
         if (button) button.disabled = false;
@@ -436,8 +578,10 @@ async function refreshStatus() {
 }
 
 function updateStatusBar(status) {
+    if (!status) return;
+    setAffectionScore(status.affection);
     if (!statusText) return;
-    const score = status.affection || 50;
+    const score = status.affection != null ? status.affection : getActiveAffection();
     const level = status.level || 1;
     let moodEmoji, moodText;
     if (score < 20) { moodEmoji = '😠'; moodText = 'Posesif'; }
@@ -774,6 +918,7 @@ async function uploadImage() {
         if (data.reply) {
             openChat();
             addMessage(data.reply, data.karakter || currentCharacter);
+            if (data.status) updateStatusBar(data.status);
             var ttsResponse = await fetch('/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -848,6 +993,7 @@ async function toggleRecording() {
                         openChat();
                         addMessage(transcript, 'user');
                         addMessage(data.reply, data.karakter || currentCharacter);
+                        if (data.status) updateStatusBar(data.status);
                         var ttsResponse = await fetch('/tts', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -958,8 +1104,7 @@ function sawer(amount) {
     .then(function(response) { return response.json(); })
     .then(function(data) {
         if (data.affection) {
-            var affDisplay = document.getElementById('affectionDisplay');
-            if (affDisplay) affDisplay.textContent = data.affection;
+            setAffectionScore(data.affection);
         }
         if (data.reply) addMessage(data.reply, currentCharacter);
     })
@@ -1035,6 +1180,8 @@ function setTheme(theme) {
         case 'rain': if (effects.rain) { effects.rain.classList.add('active'); createRain(); } break;
         default: break;
     }
+
+    if (typeof syncWACallTheme === 'function') syncWACallTheme(theme);
 }
 
 // ==========================================
@@ -1379,47 +1526,345 @@ function updateThemeByTime() {
 // Simpan referensi socket global
 var socket = null;
 var vtuberMode = false;
-var vtuberMediaRecorder = null;
-var vtuberAudioChunks = [];
-var vtuberStream = null;
-var vtuberRecordingTimer = null;
-var vtuberRetryCount = 0;
-var vtuberMaxRetries = 3;
+var vtuberRecognition = null;
+var vtuberWaitingForServer = false;
+var vtuberPttActive = false;
+var vtuberPttBound = false;
+var VTUBER_SPEECH_LANGS = ['id-ID', 'ja-JP'];
 
-// Fungsi untuk inisialisasi socket (dipanggil dari index.html)
+function updateVtuberPttHint() {
+    var el = document.getElementById('vtuberPttHint');
+    if (!el) return;
+    var name = (currentCharacter === 'sishin') ? 'Sishin' : 'Shiro';
+    el.innerHTML = 'VTuber <strong>' + name + '</strong> — tahan <kbd>Space</kbd> saat bicara (ID / JP)';
+}
+
+function showPttHint(visible) {
+    var el = document.getElementById('vtuberPttHint');
+    if (el) {
+        if (visible && vtuberMode) updateVtuberPttHint();
+        el.classList.toggle('visible', !!(visible && vtuberMode && !vtuberWaitingForServer && !document.body.classList.contains('wa-call-active')));
+    }
+    if (typeof updateWACallPttHint === 'function') {
+        updateWACallPttHint(!!(visible && vtuberMode && !vtuberWaitingForServer));
+    }
+}
+
+function bindVTuberPTT() {
+    if (vtuberPttBound) return;
+    vtuberPttBound = true;
+
+    document.addEventListener('keydown', function(e) {
+        if (!vtuberMode || vtuberWaitingForServer) return;
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+        if (e.code === 'Space' && !e.repeat) {
+            e.preventDefault();
+            beginVTuberPTT();
+        }
+    });
+
+    document.addEventListener('keyup', function(e) {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+        if (e.code === 'Space' && vtuberPttActive) {
+            e.preventDefault();
+            endVTuberPTT();
+        }
+    });
+
+    var btn = document.getElementById('btnVTuber');
+    if (btn) {
+        btn.addEventListener('mousedown', function(e) {
+            if (e.button !== 0 || !vtuberMode) return;
+            beginVTuberPTT();
+        });
+        btn.addEventListener('mouseup', endVTuberPTT);
+        btn.addEventListener('mouseleave', endVTuberPTT);
+        btn.addEventListener('touchstart', function(e) {
+            if (!vtuberMode) return;
+            e.preventDefault();
+            beginVTuberPTT();
+        }, { passive: false });
+        btn.addEventListener('touchend', endVTuberPTT);
+    }
+}
+
+function beginVTuberPTT() {
+    if (!vtuberMode || vtuberWaitingForServer || vtuberPttActive) return;
+    if (window.waCallMicMuted) return;
+    vtuberPttActive = true;
+    showPttHint(false);
+    startOneShotRecognition();
+}
+
+function endVTuberPTT() {
+    if (!vtuberPttActive) return;
+    vtuberPttActive = false;
+    if (vtuberRecognition) {
+        try { vtuberRecognition.stop(); } catch (e) {}
+    }
+    var btn = document.getElementById('btnVTuber');
+    if (btn) btn.classList.remove('recording');
+    var waMic = document.getElementById('waCallMicBtn');
+    if (waMic) waMic.classList.remove('wa-ptt-active');
+}
+
+window.endVTuberPTT = endVTuberPTT;
+
+function startOneShotRecognition(langTryIndex) {
+    langTryIndex = langTryIndex || 0;
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    if (vtuberRecognition) {
+        try { vtuberRecognition.abort(); } catch (e) {}
+    }
+
+    vtuberRecognition = new SpeechRecognition();
+    vtuberRecognition.lang = VTUBER_SPEECH_LANGS[langTryIndex] || 'id-ID';
+    vtuberRecognition.continuous = false;
+    vtuberRecognition.interimResults = true;
+    vtuberRecognition.maxAlternatives = 1;
+
+    var btn = document.getElementById('btnVTuber');
+    if (btn) btn.classList.add('recording');
+    var waMic = document.getElementById('waCallMicBtn');
+    if (waMic) waMic.classList.add('wa-ptt-active');
+
+    var sent = false;
+
+    function tryNextLang() {
+        if (sent || vtuberWaitingForServer) return;
+        if (langTryIndex + 1 < VTUBER_SPEECH_LANGS.length) {
+            vtuberPttActive = true;
+            startOneShotRecognition(langTryIndex + 1);
+        } else {
+            vtuberPttActive = false;
+            showPttHint(true);
+        }
+    }
+
+    vtuberRecognition.onresult = function(event) {
+        if (vtuberWaitingForServer || sent) return;
+        var lastIdx = event.results.length - 1;
+        var result = event.results[lastIdx];
+        if (!result.isFinal) return;
+
+        var text = result[0].transcript.trim();
+        if (!text || text.length < 2) return;
+
+        sent = true;
+        vtuberWaitingForServer = true;
+        vtuberPttActive = false;
+        if (btn) btn.classList.remove('recording');
+        if (waPtt) waPtt.classList.remove('wa-ptt-active');
+
+        var activeChar = currentCharacter || 'shiro';
+        if (socket && socket.connected) {
+            socket.emit('voice_text', {
+                text: text,
+                karakter: activeChar
+            });
+            console.log('VTuber PTT sent (' + activeChar + '):', text);
+        } else {
+            sent = false;
+            vtuberWaitingForServer = false;
+            showPttHint(true);
+        }
+    };
+
+    vtuberRecognition.onerror = function(event) {
+        console.warn('VTuber PTT error:', event.error, VTUBER_SPEECH_LANGS[langTryIndex]);
+        if (btn) btn.classList.remove('recording');
+        if (waPtt) waPtt.classList.remove('wa-ptt-active');
+        if (event.error === 'not-allowed') {
+            alert('Akses mikrofon ditolak.');
+            vtuberMode = false;
+            resetVTuberButton();
+            vtuberPttActive = false;
+            return;
+        }
+        if (event.error === 'no-speech' || event.error === 'aborted') {
+            tryNextLang();
+            return;
+        }
+        vtuberPttActive = false;
+        showPttHint(true);
+    };
+
+    vtuberRecognition.onend = function() {
+        if (btn) btn.classList.remove('recording');
+        if (waPtt) waPtt.classList.remove('wa-ptt-active');
+        if (sent || vtuberWaitingForServer) return;
+        tryNextLang();
+    };
+
+    try {
+        vtuberRecognition.start();
+    } catch (e) {
+        console.warn('PTT start error:', e);
+        tryNextLang();
+    }
+}
+
 function initSocket(socketInstance) {
     socket = socketInstance;
     console.log('Socket connected for VTuber');
-    
-    // Set up socket event listeners untuk reconnect
-    if (socket) {
-        socket.on('connect', function() {
-            console.log('Socket reconnected for VTuber');
-            // Jika mode VTuber aktif, restart rekaman
-            if (vtuberMode) {
-                console.log('Restarting VTuber recording after reconnect');
-                stopVTuber();
-                setTimeout(startVTuber, 500);
+
+    socket.on('transcript', function(data) {
+        if (data.text && typeof addMessage === 'function') {
+            addMessage(data.text, 'user');
+        }
+    });
+
+    var streamBubbleEl = null;
+
+    socket.on('stream_start', function(data) {
+        if (typeof showTypingIndicator === 'function') hideTypingIndicator();
+        var chatBox = document.getElementById('chatBox');
+        if (!chatBox) return;
+        var kar = data.karakter || currentCharacter || 'shiro';
+        var oldLive = document.getElementById('streamBubbleLive');
+        if (oldLive) oldLive.remove();
+        streamBubbleEl = document.createElement('div');
+        streamBubbleEl.className = 'msg msg-' + kar + ' stream-bubble';
+        streamBubbleEl.id = 'streamBubbleLive';
+        var bubble = document.createElement('div');
+        bubble.className = 'msg-bubble';
+        bubble.textContent = '...';
+        streamBubbleEl.appendChild(bubble);
+        chatBox.appendChild(streamBubbleEl);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    socket.on('stream_token', function(data) {
+        if (typeof hideTypingIndicator === 'function') hideTypingIndicator();
+        var kar = data.karakter || currentCharacter || 'shiro';
+        var live = document.getElementById('streamBubbleLive');
+        if (live) live.className = 'msg msg-' + kar + ' stream-bubble';
+        var bubble = document.querySelector('#streamBubbleLive .msg-bubble');
+        if (bubble && data.text) {
+            bubble.textContent = data.text;
+        }
+        if (data.text && typeof showVTuberSubtitle === 'function') {
+            showVTuberSubtitle(data.text);
+        }
+        var chatBox = document.getElementById('chatBox');
+        if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    socket.on('stream_end', function(data) {
+        if (typeof hideTypingIndicator === 'function') hideTypingIndicator();
+        var live = document.getElementById('streamBubbleLive');
+        if (live) live.remove();
+        streamBubbleEl = null;
+    });
+
+    socket.on('response', function(data) {
+        console.log('Response received:', data.text, 'karakter:', data.karakter);
+        var replyChar = data.karakter || currentCharacter || 'shiro';
+        if (data.text && typeof addMessage === 'function') {
+            addMessage(data.text, replyChar);
+        }
+        if (data.text && typeof showVTuberSubtitle === 'function') {
+            showVTuberSubtitle(data.text);
+        }
+        if (data.audio) {
+            playVTuberResponseAudio(data.audio, replyChar);
+        }
+        vtuberWaitingForServer = false;
+        showPttHint(true);
+    });
+
+    socket.on('error', function(err) {
+        console.warn('Socket error:', err.message);
+        vtuberWaitingForServer = false;
+        var live = document.getElementById('streamBubbleLive');
+        if (live) live.remove();
+        if (typeof hideTypingIndicator === 'function') hideTypingIndicator();
+        showPttHint(true);
+    });
+
+    socket.on('audio_ready', function() {
+        vtuberWaitingForServer = false;
+        showPttHint(true);
+    });
+
+    socket.on('connect', function() {
+        console.log('Socket reconnected for VTuber');
+        if (vtuberMode) {
+            vtuberWaitingForServer = false;
+            updateVtuberPttHint();
+            showPttHint(true);
+        }
+    });
+
+    socket.on('disconnect', function() {
+        console.warn('Socket disconnected for VTuber');
+        if (vtuberMode && typeof showNotification === 'function') {
+            showNotification(currentCharacter || 'shiro', 'Koneksi terputus, mencoba menyambung kembali...');
+        }
+    });
+}
+
+function playVTuberResponseAudio(base64Audio, karakter) {
+    try {
+        var byteCharacters = atob(base64Audio);
+        var byteNumbers = new Array(byteCharacters.length);
+        for (var i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        var byteArray = new Uint8Array(byteNumbers);
+        var mimeType = base64Audio.indexOf('UklGR') === 0 ? 'audio/wav' : 'audio/wav';
+        var audioBlob = new Blob([byteArray], { type: mimeType });
+        var audioUrl = URL.createObjectURL(audioBlob);
+        var audio = new Audio(audioUrl);
+
+        var avatar = document.getElementById('homeAvatar');
+        if (avatar) {
+            avatar.classList.remove('idle');
+            avatar.classList.add('speaking');
+        }
+        var glow = document.getElementById('avatarGlow');
+        if (glow) glow.classList.add('active');
+        if (typeof startLive2DLipSync === 'function') startLive2DLipSync(audio);
+        if (typeof setWACallSpeaking === 'function') setWACallSpeaking(true);
+
+        if (window.waCallSpeakerMuted) {
+            audio.volume = 0;
+        }
+
+        audio.onended = function() {
+            URL.revokeObjectURL(audioUrl);
+            if (avatar) {
+                avatar.classList.remove('speaking');
+                avatar.classList.add('idle');
             }
+            if (glow) glow.classList.remove('active');
+            if (typeof stopLive2DLipSync === 'function') stopLive2DLipSync();
+            if (typeof setWACallSpeaking === 'function') setWACallSpeaking(false);
+            if (typeof showVTuberSubtitle === 'function') showVTuberSubtitle('');
+        };
+        audio.play().catch(function(e) {
+            console.warn('Audio play error:', e);
         });
-        
-        socket.on('disconnect', function() {
-            console.warn('Socket disconnected for VTuber');
-            // Hentikan rekaman jika socket disconnect
-            if (vtuberMode) {
-                stopVTuber();
-                // Tampilkan notifikasi
-                if (typeof showNotification === 'function') {
-                    showNotification('shiro', 'Koneksi terputus, mencoba menyambung kembali...');
-                }
-            }
-        });
+    } catch (e) {
+        console.warn('playVTuberResponseAudio error:', e);
     }
 }
 
 // VTUBER MODE - toggle
 window.toggleVTuberMode = function() {
-    vtuberMode = !vtuberMode;
+    var turningOn = !vtuberMode;
+    if (turningOn) {
+        var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            alert('Browser tidak mendukung Speech Recognition. Gunakan Chrome atau Edge.');
+            return;
+        }
+    }
+
+    vtuberMode = turningOn;
+    window.vtuberMode = vtuberMode;
     var btn = document.getElementById('btnVTuber');
     if (!btn) return;
 
@@ -1427,254 +1872,71 @@ window.toggleVTuberMode = function() {
         btn.style.background = '#ff6b8a';
         btn.style.color = '#fff';
         btn.querySelector('span').textContent = 'Berhenti';
+        if (typeof openWACallOverlay === 'function') {
+            openWACallOverlay();
+        }
+        if (typeof showNotification === 'function') {
+            var charName = (currentCharacter === 'sishin') ? 'Sishin' : 'Shiro';
+            showNotification(currentCharacter || 'shiro',
+                'Video call VTuber! Tahan Space untuk bicara — ' + charName);
+        }
+        bindVTuberPTT();
+        updateVtuberPttHint();
         startVTuber();
     } else {
         btn.style.background = '';
         btn.style.color = '';
         btn.querySelector('span').textContent = 'VTuber';
+        if (typeof closeWACallOverlay === 'function') closeWACallOverlay();
         stopVTuber();
     }
 };
 
 function startVTuber() {
-    // Reset retry counter
-    vtuberRetryCount = 0;
-    
     if (!socket || !socket.connected) {
         console.warn('Socket not connected, attempting to reconnect...');
         if (socket && typeof socket.connect === 'function') {
             socket.connect();
         }
-        // Coba lagi setelah delay
         setTimeout(function() {
             if (!socket || !socket.connected) {
                 alert('Koneksi WebSocket belum siap. Pastikan server berjalan.');
                 vtuberMode = false;
-                var btn = document.getElementById('btnVTuber');
-                if (btn) {
-                    btn.style.background = '';
-                    btn.style.color = '';
-                    btn.querySelector('span').textContent = 'VTuber';
-                }
+                resetVTuberButton();
                 return;
             }
-            // Jika socket sudah siap, mulai rekaman
-            if (vtuberMode) {
-                startVTuberRecording();
-            }
+            if (vtuberMode) showPttHint(true);
         }, 1000);
         return;
     }
-    
-    // Jika socket sudah siap, langsung mulai
-    startVTuberRecording();
+    showPttHint(true);
 }
 
-function startVTuberRecording() {
-    // Minta izin mikrofon
-    navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(function(stream) {
-            // Simpan stream untuk cleanup
-            vtuberStream = stream;
-            
-            // Gunakan format yang didukung browser
-            var mimeType = 'audio/webm;codecs=opus';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'audio/webm';
-            }
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'audio/mp4';
-            }
-            
-            vtuberMediaRecorder = new MediaRecorder(stream, {
-                mimeType: mimeType
-            });
-
-            vtuberAudioChunks = [];
-
-            vtuberMediaRecorder.ondataavailable = function(e) {
-                if (e.data.size > 0) {
-                    vtuberAudioChunks.push(e.data);
-                }
-            };
-
-            vtuberMediaRecorder.onstop = function() {
-                // Jika socket tidak terhubung, jangan kirim
-                if (!socket || !socket.connected) {
-                    console.warn('Socket tidak terhubung, audio tidak terkirim');
-                    // Hentikan mode VTuber jika socket mati
-                    if (vtuberMode) {
-                        vtuberMode = false;
-                        var btn = document.getElementById('btnVTuber');
-                        if (btn) {
-                            btn.style.background = '';
-                            btn.style.color = '';
-                            btn.querySelector('span').textContent = 'VTuber';
-                        }
-                        // Tampilkan notifikasi
-                        if (typeof showNotification === 'function') {
-                            showNotification('shiro', 'Koneksi terputus. VTuber dinonaktifkan.');
-                        }
-                    }
-                    return;
-                }
-
-                var blob = new Blob(vtuberAudioChunks, { type: 'audio/webm' });
-                vtuberAudioChunks = [];
-
-                if (blob.size < 500) {
-                    console.warn('Audio terlalu kecil, mungkin tidak ada suara');
-                    // Kirim notifikasi
-                    if (typeof showNotification === 'function') {
-                        showNotification('shiro', 'Suara terlalu pelan, coba bicara lebih keras.');
-                    }
-                    // Lanjutkan rekaman jika mode masih aktif
-                    if (vtuberMode && vtuberMediaRecorder) {
-                        scheduleNextRecording();
-                    }
-                    return;
-                }
-
-                // Konversi blob ke base64
-                var reader = new FileReader();
-                reader.onloadend = function() {
-                    var base64Audio = reader.result.split(',')[1];
-                    if (socket && socket.connected) {
-                        socket.emit('audio', { audio: base64Audio });
-                        console.log('Audio sent to server (' + blob.size + ' bytes)');
-                    } else {
-                        console.warn('Socket tidak terhubung, audio tidak terkirim');
-                    }
-                };
-                reader.readAsDataURL(blob);
-
-                // Jadwalkan rekaman berikutnya jika mode masih aktif
-                if (vtuberMode && vtuberMediaRecorder) {
-                    scheduleNextRecording();
-                }
-            };
-
-            // Mulai rekaman pertama
-            vtuberMediaRecorder.start();
-            console.log('VTuber recording started');
-            
-            // Hentikan setelah 3 detik untuk mengirim data
-            vtuberRecordingTimer = setTimeout(function() {
-                if (vtuberMediaRecorder && vtuberMediaRecorder.state === 'recording') {
-                    vtuberMediaRecorder.stop();
-                }
-            }, 3000);
-        })
-        .catch(function(err) {
-            console.error('Mic error:', err);
-            // Jika error karena user menolak izin
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                alert('Akses mikrofon ditolak. Izinkan di pengaturan browser dan refresh halaman.');
-            } else {
-                alert('Gagal mengakses mikrofon: ' + err.message);
-            }
-            vtuberMode = false;
-            var btn = document.getElementById('btnVTuber');
-            if (btn) {
-                btn.style.background = '';
-                btn.style.color = '';
-                btn.querySelector('span').textContent = 'VTuber';
-            }
-        });
-}
-
-function scheduleNextRecording() {
-    // Hapus timer lama jika ada
-    if (vtuberRecordingTimer) {
-        clearTimeout(vtuberRecordingTimer);
-        vtuberRecordingTimer = null;
-    }
-    
-    // Cek socket sebelum memulai rekaman baru
-    if (!socket || !socket.connected) {
-        console.warn('Socket tidak terhubung, menunggu reconnect...');
-        // Coba reconnect
-        if (socket && typeof socket.connect === 'function') {
-            socket.connect();
-        }
-        // Coba lagi setelah delay
-        setTimeout(function() {
-            if (vtuberMode && socket && socket.connected) {
-                // Jika socket sudah terhubung, mulai rekaman
-                if (vtuberMediaRecorder && vtuberMediaRecorder.state === 'inactive') {
-                    vtuberMediaRecorder.start();
-                    vtuberRecordingTimer = setTimeout(function() {
-                        if (vtuberMediaRecorder && vtuberMediaRecorder.state === 'recording') {
-                            vtuberMediaRecorder.stop();
-                        }
-                    }, 3000);
-                }
-            } else if (vtuberMode) {
-                // Jika masih gagal, nonaktifkan mode
-                console.warn('Socket masih tidak terhubung, menonaktifkan VTuber');
-                vtuberMode = false;
-                var btn = document.getElementById('btnVTuber');
-                if (btn) {
-                    btn.style.background = '';
-                    btn.style.color = '';
-                    btn.querySelector('span').textContent = 'VTuber';
-                }
-                if (typeof showNotification === 'function') {
-                    showNotification('shiro', 'Koneksi gagal. VTuber dinonaktifkan.');
-                }
-            }
-        }, 2000);
-        return;
-    }
-    
-    // Jika mode aktif dan socket terhubung, lanjutkan rekaman
-    if (vtuberMode && vtuberMediaRecorder && vtuberMediaRecorder.state === 'inactive') {
-        try {
-            vtuberMediaRecorder.start();
-            vtuberRecordingTimer = setTimeout(function() {
-                if (vtuberMediaRecorder && vtuberMediaRecorder.state === 'recording') {
-                    vtuberMediaRecorder.stop();
-                }
-            }, 3000);
-        } catch (e) {
-            console.warn('Error starting recording:', e);
-            // Coba lagi setelah delay
-            setTimeout(scheduleNextRecording, 1000);
-        }
-    }
+function resetVTuberButton() {
+    var btn = document.getElementById('btnVTuber');
+    if (!btn) return;
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.classList.remove('recording');
+    btn.querySelector('span').textContent = 'VTuber';
 }
 
 function stopVTuber() {
-    // Hapus timer
-    if (vtuberRecordingTimer) {
-        clearTimeout(vtuberRecordingTimer);
-        vtuberRecordingTimer = null;
+    vtuberWaitingForServer = false;
+    vtuberPttActive = false;
+    window.vtuberMode = false;
+    resetVTuberButton();
+    showPttHint(false);
+    if (typeof closeWACallOverlay === 'function') closeWACallOverlay();
+    if (typeof setWACallSpeaking === 'function') setWACallSpeaking(false);
+
+    if (vtuberRecognition) {
+        try { vtuberRecognition.abort(); } catch (e) {}
+        vtuberRecognition.onend = null;
+        vtuberRecognition.onerror = null;
+        vtuberRecognition.onresult = null;
+        vtuberRecognition = null;
     }
-    
-    // Stop MediaRecorder
-    if (vtuberMediaRecorder) {
-        try {
-            if (vtuberMediaRecorder.state !== 'inactive') {
-                vtuberMediaRecorder.stop();
-            }
-        } catch (e) {
-            console.warn('Error stopping recorder:', e);
-        }
-        vtuberMediaRecorder = null;
-    }
-    
-    // Stop tracks stream
-    if (vtuberStream) {
-        try {
-            vtuberStream.getTracks().forEach(function(track) {
-                track.stop();
-            });
-        } catch (e) {
-            console.warn('Error stopping tracks:', e);
-        }
-        vtuberStream = null;
-    }
-    
-    vtuberAudioChunks = [];
-    console.log('VTuber recording stopped');
+
+    console.log('VTuber stopped');
 }

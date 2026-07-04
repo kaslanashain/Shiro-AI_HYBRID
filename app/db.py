@@ -3,6 +3,29 @@ from datetime import datetime
 
 from app.config import DB_PATH
 
+GUEST_USER_ID = 1
+
+
+def _resolve_user_id(user_id=None):
+    """Guest = 1; logged-in user from Flask g/session."""
+    if user_id is not None:
+        return user_id
+    try:
+        from flask import g
+        uid = getattr(g, "user_id", None)
+        if uid:
+            return uid
+    except RuntimeError:
+        pass
+    try:
+        from flask import session
+        uid = session.get("user_id")
+        if uid:
+            return uid
+    except RuntimeError:
+        pass
+    return GUEST_USER_ID
+
 
 def _connect():
     conn = sqlite3.connect(DB_PATH)
@@ -97,6 +120,24 @@ def init_db():
             """
         )
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS story_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL DEFAULT 1,
+                karakter TEXT DEFAULT 'shiro',
+                title TEXT DEFAULT 'Petualangan Baru',
+                location TEXT DEFAULT 'Desa Awal',
+                hp INTEGER DEFAULT 100,
+                inventory TEXT DEFAULT '[]',
+                scene TEXT DEFAULT '',
+                history TEXT DEFAULT '[]',
+                active INTEGER DEFAULT 1,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+
         conn.commit()
 
 
@@ -104,16 +145,28 @@ def init_db():
 # FUNGSI-FUNGSI YANG SUDAH ADA (tidak diubah)
 # ============================================================
 
-def muat_memori(user_id=1, limit=30):
+def muat_memori(user_id=None, limit=30, karakter=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
-        rows = conn.execute(
-            "SELECT role, content FROM memori WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?",
-            (user_id, limit),
-        ).fetchall()
+        if karakter in ("shiro", "sishin"):
+            rows = conn.execute(
+                """
+                SELECT role, content FROM memori
+                WHERE user_id = ? AND karakter = ?
+                ORDER BY timestamp DESC LIMIT ?
+                """,
+                (user_id, karakter, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT role, content FROM memori WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
         return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
 
 
-def simpan_memori(user, shiro, karakter="shiro", user_id=1):
+def simpan_memori(user, shiro, karakter="shiro", user_id=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         conn.execute(
             "INSERT INTO memori (user_id, role, content, karakter) VALUES (?, ?, ?, ?)",
@@ -135,7 +188,8 @@ def simpan_memori(user, shiro, karakter="shiro", user_id=1):
         conn.commit()
 
 
-def muat_status(user_id=1):
+def muat_status(user_id=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         row = conn.execute(
             "SELECT affection, level, interaksi FROM status WHERE user_id = ?",
@@ -150,7 +204,8 @@ def muat_status(user_id=1):
         return {"affection": 50, "level": 1, "interaksi": 0}
 
 
-def simpan_status(status, user_id=1):
+def simpan_status(status, user_id=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         cursor = conn.execute("PRAGMA table_info(status)")
         columns = [col[1] for col in cursor.fetchall()]
@@ -175,7 +230,8 @@ def simpan_status(status, user_id=1):
         conn.commit()
 
 
-def muat_fakta(user_id=1, limit=10):
+def muat_fakta(user_id=None, limit=10):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         rows = conn.execute(
             "SELECT fakta FROM fakta WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
@@ -185,6 +241,7 @@ def muat_fakta(user_id=1, limit=10):
 
 
 def simpan_fakta(user_id, fakta):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         conn.execute("INSERT INTO fakta (user_id, fakta) VALUES (?, ?)", (user_id, fakta))
         conn.commit()
@@ -194,7 +251,8 @@ def simpan_fakta(user_id, fakta):
 # FUNGSI-FUNGSI BARU
 # ============================================================
 
-def get_last_chat_time(user_id=1):
+def get_last_chat_time(user_id=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         row = conn.execute("SELECT last_chat FROM status WHERE user_id = ?", (user_id,)).fetchone()
         if row and row["last_chat"]:
@@ -202,7 +260,8 @@ def get_last_chat_time(user_id=1):
         return datetime.now()
 
 
-def log_event(event_id, user_id=1):
+def log_event(event_id, user_id=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         # Gunakan INSERT OR IGNORE dengan trigger_date agar tidak duplikat per hari
         conn.execute(
@@ -215,7 +274,8 @@ def log_event(event_id, user_id=1):
         conn.commit()
 
 
-def is_event_triggered_today(event_id, user_id=1):
+def is_event_triggered_today(event_id, user_id=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         row = conn.execute(
             """
@@ -227,7 +287,8 @@ def is_event_triggered_today(event_id, user_id=1):
         return row is not None
 
 
-def muat_preferensi(user_id=1):
+def muat_preferensi(user_id=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         row = conn.execute(
             "SELECT panggilan, topik FROM preferences WHERE user_id = ?",
@@ -238,7 +299,8 @@ def muat_preferensi(user_id=1):
         return {"panggilan": "Kakak Shin", "topik": ""}
 
 
-def simpan_preferensi(user_id=1, panggilan=None, topik=None):
+def simpan_preferensi(user_id=None, panggilan=None, topik=None):
+    user_id = _resolve_user_id(user_id)
     with _connect() as conn:
         if panggilan is not None:
             conn.execute(
@@ -251,3 +313,72 @@ def simpan_preferensi(user_id=1, panggilan=None, topik=None):
                 (topik, user_id),
             )
         conn.commit()
+
+
+# ============================================================
+# STORY MODE
+# ============================================================
+
+def story_create(user_id=None, karakter="shiro", title="Petualangan Baru"):
+    user_id = _resolve_user_id(user_id)
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE story_sessions SET active = 0 WHERE user_id = ? AND karakter = ?",
+            (user_id, karakter),
+        )
+        cur = conn.execute(
+            """
+            INSERT INTO story_sessions (user_id, karakter, title, active)
+            VALUES (?, ?, ?, 1)
+            """,
+            (user_id, karakter, title),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def story_get(session_id, user_id=None):
+    user_id = _resolve_user_id(user_id)
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM story_sessions
+            WHERE id = ? AND user_id = ? AND active = 1
+            """,
+            (session_id, user_id),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def story_get_active(user_id=None, karakter="shiro"):
+    user_id = _resolve_user_id(user_id)
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM story_sessions
+            WHERE user_id = ? AND karakter = ? AND active = 1
+            ORDER BY updated_at DESC LIMIT 1
+            """,
+            (user_id, karakter),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def story_update(session_id, user_id=None, **fields):
+    user_id = _resolve_user_id(user_id)
+    allowed = {"title", "location", "hp", "inventory", "scene", "history"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return False
+    sets = ", ".join(f"{k} = ?" for k in updates)
+    vals = list(updates.values()) + [session_id, user_id]
+    with _connect() as conn:
+        conn.execute(
+            f"""
+            UPDATE story_sessions SET {sets}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ?
+            """,
+            vals,
+        )
+        conn.commit()
+        return True

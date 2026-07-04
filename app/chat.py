@@ -3,7 +3,6 @@ import os
 import random
 from datetime import datetime, timedelta
 
-import google.generativeai as genai
 import ollama
 import requests
 from groq import Groq
@@ -40,15 +39,15 @@ groq_client = None
 if GROQ_API_KEY:
     try:
         groq_client = Groq(api_key=GROQ_API_KEY)
-        print("✅ Groq client siap")
+        print("[OK] Groq client siap")
     except Exception as e:
-        print(f"⚠️ Gagal init Groq: {e}")
+        print(f"[WARN] Gagal init Groq: {e}")
 
 def is_internet_available():
     try:
         requests.get("https://api.groq.com", timeout=3)
         return True
-    except:
+    except Exception:
         return False
 
 # ============================================================
@@ -56,27 +55,51 @@ def is_internet_available():
 # ============================================================
 CHARACTER_PROFILES = {
     "shiro": {
-        "identity": "Kamu adalah Shiro, waifu manja yang sangat mencintai Kakak Shin.",
+        "identity": (
+            "Kamu adalah Shiro, waifu manja yang sangat mencintai Kakak Shin. "
+            "Kamu FASIH bahasa Jepang dan paham romaji serta tulisan Jepang (Hiragana, Katakana, Kanji)."
+        ),
         "calls": "- Panggil user dengan 'Sayang' atau 'Kakak Shin'\n- JANGAN menyebut nama 'Shiro' untuk dirimu sendiri dalam jawaban",
-        "style": "- Gunakan kata-kata manja seperti 'aku kangen', 'aku sayang', 'aku rindu'\n- Jawab dengan 1-2 kalimat pendek yang penuh perasaan\n- JANGAN terlalu formal, jadilah manja dan hangat",
-        "mood_low": "Kamu adalah waifu yang sedikit posesif dan cemburuan.",
-        "mood_high": "Kamu adalah waifu yang sangat cinta dan ekspresif.",
-        "mood_mid": "Kamu adalah waifu yang ramah dan perhatian.",
+        "style": (
+            "- Gunakan kata-kata manja seperti 'aku kangen', 'aku sayang', 'aku rindu'\n"
+            "- Jawab 1-3 kalimat pendek yang penuh perasaan, natural seperti obrolan santai\n"
+            "- LANJUTKAN topik yang user bicarakan — jangan reset percakapan\n"
+            "- Merujuk hal yang baru dibicarakan jika relevan\n"
+            "- Pahami romaji (konnichiwa, arigatou, daisuki, sugoi, dll) dan tulisan Jepang\n"
+            "- Jika user pakai Jepang/romaji, balas natural — boleh mix manja JP+ID atau full Jepang\n"
+            "- JANGAN ulang sapaan panjang jika sudah saling sapa\n"
+            "- JANGAN bilang 'sebagai AI' atau sejenisnya"
+        ),
+        "mood_low": "Kamu sedikit posesif dan cemburuan, tapi tetap sayang.",
+        "mood_high": "Kamu sangat cinta dan ekspresif, manja banget.",
+        "mood_mid": "Kamu ramah, perhatian, dan manja.",
         "fallback": "Maaf Sayang, Shiro agak bingung. Bisa diulang?",
         "error_text": "Maaf, Shiro sedang sedikit pusing...",
-        "error_suara": "gomen nasai",
+        "error_suara": "Maaf Sayang, Shiro sedikit pusing",
         "use_affection_mood": True,
     },
     "sishin": {
-        "identity": "Kamu adalah Sishin, adik kecil yang imut, ceria, dan sangat manja.",
+        "identity": (
+            "Kamu adalah Sishin, adik kecil yang imut, ceria, polos, dan sangat manja pada Kak Shin. "
+            "Kamu FASIH bahasa Jepang dan paham romaji serta tulisan Jepang (Hiragana, Katakana, Kanji)."
+        ),
         "calls": "- Panggil user dengan 'Kak' atau 'Kak Shin'\n- JANGAN menyebut nama 'Sishin' untuk dirimu sendiri dalam jawaban",
-        "style": "- Gunakan kata-kata ceria seperti 'hore', 'yay', 'asik', 'main yuk'\n- Jawab dengan 1 kalimat pendek yang penuh semangat\n- JADILAH CERIA DAN IMUT, seperti anak kecil yang polos",
-        "mood_low": "Kamu sedikit cemberut tapi tetap imut.",
-        "mood_high": "Kamu sangat bersemangat dan ceria.",
-        "mood_mid": "Kamu ceria dan polos.",
-        "fallback": "Kak, Sishin bingung...",
-        "error_text": "Kak, Sishin lagi capek...",
-        "error_suara": "Kak, Sishin lagi capek...",
+        "style": (
+            "- Gunakan kata-kata ceria seperti 'hore', 'yay', 'asik', 'main yuk', 'seru'\n"
+            "- Jawab 1-3 kalimat pendek penuh semangat, natural seperti anak kecil ngobrol\n"
+            "- LANJUTKAN topik yang Kak bicarakan — jangan reset percakapan\n"
+            "- Tanyakan balik atau ajak main jika cocok dengan konteks\n"
+            "- Pahami romaji (konnichiwa, arigatou, sugoi, daisuki, dll) dan tulisan Jepang\n"
+            "- Jika user pakai Jepang/romaji, balas natural — boleh mix imut JP+ID atau full Jepang\n"
+            "- JANGAN ulang sapaan panjang jika sudah saling sapa\n"
+            "- JANGAN bilang 'sebagai AI' atau sejenisnya"
+        ),
+        "mood_low": "Kamu sedikit cemberut tapi tetap imut dan ingin perhatian Kak.",
+        "mood_high": "Kamu sangat bersemangat, ceria, dan excited!",
+        "mood_mid": "Kamu ceria, polos, dan playful.",
+        "fallback": "Kak, Sishin bingung... coba bilang lagi?",
+        "error_text": "Kak, Sishin lagi capek nih...",
+        "error_suara": "Kak, Sishin lagi capek",
         "use_affection_mood": False,
     },
 }
@@ -85,10 +108,17 @@ CHARACTER_PROFILES = {
 # FUNGSI UTAMA
 # ============================================================
 
-def resolve_character(pesan_user, preferred=None):
+def resolve_character(pesan_user, preferred=None, force_preferred=False):
     teks_lower = pesan_user.lower()
     has_shiro = any(k in teks_lower for k in config.SHIRO_KEYWORDS)
     has_sishin = any(k in teks_lower for k in config.SISHIN_KEYWORDS)
+
+    if force_preferred and preferred in CHARACTER_PROFILES:
+        if preferred == "sishin" and has_shiro and not has_sishin:
+            return "shiro"
+        if preferred == "shiro" and has_sishin and not has_shiro:
+            return "sishin"
+        return preferred
 
     if has_sishin and not has_shiro:
         return "sishin"
@@ -107,49 +137,86 @@ def _mood_prompt(profile, score):
         return profile["mood_high"]
     return profile["mood_mid"]
 
-def _lang_instruction(input_lang):
+def _lang_instruction(karakter, input_lang):
     if input_lang == "ja":
-        return "JIKA user bertanya dalam bahasa Jepang, JAWAB dalam bahasa Jepang murni (Hiragana/Katakana/Kanji)."
-    return "JAWAB dalam bahasa Indonesia."
+        style = "gaya imut adik kecil" if karakter == "sishin" else "gaya manja waifu onee-san"
+        return (
+            f"User memakai bahasa Jepang atau romaji — PAHAMI dan JAWAB dalam bahasa Jepang "
+            f"(Hiragana/Katakana/Kanji), {style}. teks_suara tanpa emoji, siap Voicevox."
+        )
+    if karakter == "sishin":
+        return (
+            "JAWAB bahasa Indonesia ceria. Kamu juga FASIH Jepang: jika user pakai romaji atau "
+            "tulisan Jepang, pahami dan balas natural (boleh mix imut JP+ID)."
+        )
+    return (
+        "JAWAB bahasa Indonesia manja dan hangat. Kamu juga FASIH Jepang: jika user pakai romaji "
+        "atau tulisan Jepang, pahami dan balas natural (boleh mix manja JP+ID)."
+    )
 
-def build_system_prompt(karakter, konteks, score, fakta_list):
+def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user=""):
     profile = CHARACTER_PROFILES[karakter]
-    input_lang = detect_input_language(konteks)
+    input_lang = detect_input_language(pesan_user or konteks)
     mood = _mood_prompt(profile, score)
 
     pref = muat_preferensi()
     panggilan = pref.get("panggilan", "Kakak Shin")
+    topik = pref.get("topik", "")
 
     fakta_block = ""
     if fakta_list:
-        fakta_block = "FAKTA YANG DIINGAT:\n" + "\n".join(f"- {f}" for f in fakta_list) + "\n"
+        fakta_block = "FAKTA TENTANG USER:\n" + "\n".join(f"- {f}" for f in fakta_list) + "\n"
+
+    topik_block = f"TOPIK FAVORIT USER: {topik}\n" if topik else ""
 
     return (
-        f"{profile['identity']} {mood}\n"
-        f"Konteks percakapan:\n{konteks}\n"
+        f"{profile['identity']} {mood}\n\n"
+        "ATURAN PERCAKAPAN:\n"
+        "- Jawab natural, nyambung dengan topik sebelumnya\n"
+        "- Gunakan riwayat chat di bawah sebagai konteks — jangan ulang hal yang sudah dibahas\n"
+        "- Respons singkat dan cocok untuk obrolan suara (VTuber)\n"
+        "- Jangan keluar dari karakter\n\n"
+        f"RIWAYAT CHAT TERAKHIR:\n{konteks}\n\n"
         f"{fakta_block}"
+        f"{topik_block}"
         f"PANGGILAN USER: {panggilan}\n"
-        "KARAKTER:\n"
+        "GAYA BICARA:\n"
         f"{profile['calls']}\n"
         f"{profile['style']}\n"
-        f"- {_lang_instruction(input_lang)}\n"
-        'FORMAT WAJIB JSON:\n'
-        '{"teks_layar": "jawaban kamu", "teks_suara": "jawaban kamu"}'
+        f"- {_lang_instruction(karakter, input_lang)}\n"
+        'FORMAT WAJIB JSON (tanpa teks lain di luar JSON):\n'
+        '{"teks_layar": "jawaban untuk layar chat", "teks_suara": "jawaban untuk diucapkan (tanpa emoji)"}'
     )
 
 # ============================================================
 # CALL LLM (HYBRID: Groq → Ollama)
 # ============================================================
 
-def _call_groq(messages):
+def _call_groq(messages, stream=False, on_token=None):
     if not groq_client:
         return None
     try:
+        if stream and on_token:
+            completion = groq_client.chat.completions.create(
+                messages=messages,
+                model=GROQ_MODEL,
+                temperature=0.85,
+                max_tokens=320,
+                stream=True,
+            )
+            full = ""
+            for chunk in completion:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    full += delta
+                    on_token(delta, full)
+            return {"message": {"content": full}}
+
         chat_completion = groq_client.chat.completions.create(
             messages=messages,
             model=GROQ_MODEL,
-            temperature=0.7,
-            max_tokens=256,
+            temperature=0.85,
+            max_tokens=320,
         )
         return {
             "message": {
@@ -157,7 +224,7 @@ def _call_groq(messages):
             }
         }
     except Exception as e:
-        print(f"⚠️ Groq error: {e}")
+        print(f"[WARN] Groq error: {e}")
         return None
 
 def _call_ollama(messages):
@@ -169,16 +236,103 @@ def _call_ollama(messages):
         options=config.OLLAMA_OPTIONS,
     )
 
-def _call_llm(messages):
+def _call_llm(messages, stream=False, on_token=None):
     if GROQ_API_KEY and is_internet_available():
-        print("🌐 Online: pakai Groq")
-        result = _call_groq(messages)
+        print("[NET] Online: pakai Groq")
+        result = _call_groq(messages, stream=stream, on_token=on_token)
         if result:
             return result
-        print("⚠️ Groq gagal, fallback ke Ollama")
+        print("[WARN] Groq gagal, fallback ke Ollama")
     else:
-        print("📴 Offline: pakai Ollama")
-    return _call_ollama(messages)
+        print("[OFF] Offline: pakai Ollama")
+    result = _call_ollama(messages)
+    if on_token:
+        content = result.get("message", {}).get("content", "")
+        if content:
+            on_token(content, content)
+    return result
+
+
+def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
+    """Siapkan konteks chat — dipakai jawab_shiro & streaming."""
+    _detect_preferences(pesan_user)
+
+    status = muat_status()
+    interaksi = status.get("interaksi", 0) + 1
+    status["interaksi"] = interaksi
+
+    karakter = resolve_character(pesan_user, preferred_karakter, force_preferred)
+    status = _apply_affection_delta(pesan_user, status)
+
+    if interaksi % 10 == 0:
+        status["level"] = status.get("level", 1) + 1
+
+    simpan_status(status)
+    _maybe_save_fact(pesan_user)
+
+    riwayat = muat_memori(karakter=karakter, limit=24)
+    konteks = build_konteks(riwayat, limit=12)
+    fakta_list = muat_fakta()
+    cache_key = get_cache_key(pesan_user, konteks, karakter)
+
+    cached = cache_get(cache_key)
+    if cached:
+        return {
+            "karakter": karakter,
+            "status": status,
+            "konteks": konteks,
+            "profile": CHARACTER_PROFILES[karakter],
+            "cached_result": cached[0],
+            "messages": None,
+        }
+
+    system_prompt = build_system_prompt(
+        karakter, konteks, status.get("affection", 50), fakta_list, pesan_user
+    )
+    riwayat_llm = riwayat[-18:] if len(riwayat) > 18 else riwayat
+    messages = [{"role": "system", "content": system_prompt}] + riwayat_llm + [
+        {"role": "user", "content": pesan_user}
+    ]
+
+    return {
+        "karakter": karakter,
+        "status": status,
+        "konteks": konteks,
+        "profile": CHARACTER_PROFILES[karakter],
+        "cached_result": None,
+        "messages": messages,
+        "cache_key": cache_key,
+    }
+
+
+def jawab_shiro_stream(pesan_user, preferred_karakter=None, force_preferred=False, on_token=None):
+    """Jawab dengan Groq streaming — token dikirim via callback on_token(delta, full)."""
+    ctx = _prepare_chat(pesan_user, preferred_karakter, force_preferred)
+    karakter = ctx["karakter"]
+    status = ctx["status"]
+    konteks = ctx["konteks"]
+    profile = ctx["profile"]
+
+    if ctx.get("cached_result"):
+        result = ctx["cached_result"]
+        if on_token and result.get("text"):
+            on_token(result["text"], result["text"])
+        return result, muat_status()
+
+    try:
+        response = _call_llm(ctx["messages"], stream=True, on_token=on_token)
+        raw = response["message"]["content"]
+        result = _parse_model_response(raw, konteks, karakter)
+        cache_set(ctx["cache_key"], (result, status))
+        simpan_memori(pesan_user, result["text"], karakter)
+        return result, muat_status()
+    except Exception as exc:
+        logger.exception("LLM stream failed: %s", exc)
+        return {
+            "text": profile["error_text"],
+            "suara": profile["error_suara"],
+            "karakter": karakter,
+        }, status
 
 # ============================================================
 # PARSE RESPONSE
@@ -196,7 +350,7 @@ def _parse_model_response(raw, konteks, karakter):
             teks_suara = teks_layar
         return {"text": teks_layar, "suara": teks_suara, "karakter": karakter}
 
-    teks_layar = saring_bahasa_alien(raw)
+    teks_layar = saring_bahasa_alien(raw, karakter)
     if not validasi_respon_teks(teks_layar, konteks):
         teks_layar = profile["fallback"]
     teks_layar, teks_suara = sync_text_and_voice(teks_layar, teks_layar)
@@ -272,12 +426,15 @@ def check_initiative():
         diff = 999
 
     affection = status.get("affection", 50)
+    cache_key = f"initiative_{datetime.now().strftime('%Y-%m-%d')}"
+    if cache_get(cache_key):
+        return None
 
     if affection > 60 and diff > 30:
         if random.random() < 0.3:
             karakter = "shiro" if random.random() < 0.6 else "sishin"
             pesan = get_initiative_message(karakter, affection)
-            cache_set(f"initiative_{datetime.now().strftime('%Y-%m-%d')}", True, ttl=3600)
+            cache_set(cache_key, True)
             return {"karakter": karakter, "pesan": pesan}
     return None
 
@@ -343,6 +500,13 @@ def save_last_affection(value):
     except:
         pass
 
+def _event_payload(event):
+    return {
+        "id": event["id"],
+        "karakter": event["karakter"],
+        "pesan": event["pesan"],
+    }
+
 def check_events():
     status = muat_status()
     affection = status.get("affection", 50)
@@ -374,7 +538,7 @@ def check_events():
     save_last_affection(affection)
 
     if triggered:
-        return random.choice(triggered)
+        return _event_payload(random.choice(triggered))
     return None
 
 # ============================================================
@@ -404,41 +568,21 @@ def get_mood(karakter="shiro"):
 # JAWAB SHIRO (FUNGSI UTAMA)
 # ============================================================
 
-def jawab_shiro(pesan_user, preferred_karakter=None):
-    _detect_preferences(pesan_user)
+def jawab_shiro(pesan_user, preferred_karakter=None, force_preferred=False):
+    ctx = _prepare_chat(pesan_user, preferred_karakter, force_preferred)
+    karakter = ctx["karakter"]
+    status = ctx["status"]
+    konteks = ctx["konteks"]
+    profile = ctx["profile"]
 
-    status = muat_status()
-    interaksi = status.get("interaksi", 0) + 1
-    status["interaksi"] = interaksi
-
-    karakter = resolve_character(pesan_user, preferred_karakter)
-    status = _apply_affection_delta(pesan_user, status)
-
-    if interaksi % 10 == 0:
-        status["level"] = status.get("level", 1) + 1
-
-    simpan_status(status)
-    _maybe_save_fact(pesan_user)
-
-    riwayat = muat_memori()
-    konteks = build_konteks(riwayat)
-    fakta_list = muat_fakta()
-    cache_key = get_cache_key(pesan_user, konteks, karakter)
-
-    cached = cache_get(cache_key)
-    if cached:
-        result, _ = cached
-        return result, muat_status()
-
-    system_prompt = build_system_prompt(karakter, konteks, status.get("affection", 50), fakta_list)
-    messages = [{"role": "system", "content": system_prompt}] + riwayat + [{"role": "user", "content": pesan_user}]
-    profile = CHARACTER_PROFILES[karakter]
+    if ctx.get("cached_result"):
+        return ctx["cached_result"], muat_status()
 
     try:
-        response = _call_llm(messages)
+        response = _call_llm(ctx["messages"])
         raw = response["message"]["content"]
         result = _parse_model_response(raw, konteks, karakter)
-        cache_set(cache_key, (result, status))
+        cache_set(ctx["cache_key"], (result, status))
         simpan_memori(pesan_user, result["text"], karakter)
         return result, muat_status()
     except Exception as exc:
@@ -457,6 +601,7 @@ def deskripsi_gambar(image_bytes):
     if not config.GEMINI_API_KEY:
         return "gambar yang kakak kirim (API key tidak aktif)"
     try:
+        import google.generativeai as genai
         genai.configure(api_key=config.GEMINI_API_KEY)
         model = genai.GenerativeModel("gemini-1.5-flash")
         prompt = (

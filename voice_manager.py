@@ -7,6 +7,8 @@ import time
 import edge_tts
 import requests
 
+from app import config
+
 logger = logging.getLogger(__name__)
 
 class VoiceManager:
@@ -20,11 +22,7 @@ class VoiceManager:
             "shiro": {"speedScale": 0.85, "pitchScale": 1.0, "intonationScale": 1.1},
             "sishin": {"speedScale": 0.9, "pitchScale": 1.2, "intonationScale": 1.2},
         }
-        self.romaji_keywords = [
-            "konnichiwa", "ohayou", "konbanwa", "arigatou", "gomen",
-            "daisuki", "sayonara", "onii-chan", "onee-san", "genki",
-            "kawaii", "sugoi", "yatta", "itadakimasu", "gochisousama",
-        ]
+
         if self.voicevox_available:
             logger.info("Voicevox active at %s", self.voicevox_url)
         else:
@@ -38,13 +36,12 @@ class VoiceManager:
             return False
 
     def _detect_japanese(self, text):
-        # Deteksi karakter Jepang
         for char in text:
             code = ord(char)
             if 0x3040 <= code <= 0x30FF or 0x4E00 <= code <= 0x9FFF:
                 return True
         text_lower = text.lower()
-        return any(keyword in text_lower for keyword in self.romaji_keywords)
+        return any(keyword in text_lower for keyword in config.ROMAJI_KEYWORDS)
 
     async def generate(self, text, karakter="shiro", bahasa="id"):
         """
@@ -69,7 +66,7 @@ class VoiceManager:
         # Fallback Edge TTS
         lang = "jp" if self._detect_japanese(text) else "id"
         logger.info("Menggunakan Edge TTS (bahasa: %s) untuk %s", lang, karakter)
-        return await self._generate_edge_tts(text, lang)
+        return await self._generate_edge_tts(text, lang, karakter)
 
     def _voicevox_query(self, text, speaker, params):
         query_url = f"{self.voicevox_url}/audio_query"
@@ -121,11 +118,16 @@ class VoiceManager:
             logger.exception("Voicevox error: %s", exc)
             return None
 
-    async def _generate_edge_tts(self, text, bahasa="id"):
+    async def _generate_edge_tts(self, text, bahasa="id", karakter="shiro"):
         try:
-            voice = "ja-JP-NanamiNeural" if bahasa == "jp" else "id-ID-GadisNeural"
+            if bahasa == "jp":
+                voice = "ja-JP-NanamiNeural"
+            elif karakter == "sishin":
+                voice = "id-ID-GadisNeural"
+            else:
+                voice = "id-ID-GadisNeural"
             communicate = edge_tts.Communicate(text, voice)
-            file_name = f"edge_{bahasa}_{uuid.uuid4().hex}.mp3"
+            file_name = f"edge_{karakter}_{bahasa}_{uuid.uuid4().hex}.mp3"
             file_path = os.path.join(self.temp_dir, file_name)
             await communicate.save(file_path)
             if os.path.exists(file_path):

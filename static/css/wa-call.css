@@ -1,0 +1,416 @@
+/* ==========================================
+   WhatsApp-style VTuber Video Call Overlay
+   Frosted glass · centered avatar · WA dock
+   ========================================== */
+
+.wa-call-overlay {
+    --wa-accent: #ff6b8a;
+    --wa-accent-soft: rgba(255, 107, 138, 0.35);
+    --wa-accent-glow: rgba(255, 107, 138, 0.45);
+    --wa-theme-accent: #a78bfa;
+    --wa-glass-bg: rgba(0, 0, 0, 0.4);
+    --wa-surface: rgba(12, 10, 24, 0.55);
+    --wa-dock-bg: rgba(18, 16, 32, 0.72);
+    --wa-text: #f0ecff;
+    --wa-text-muted: rgba(240, 236, 255, 0.72);
+    --wa-border: rgba(255, 255, 255, 0.14);
+    --wa-theme-tint: rgba(48, 43, 99, 0.35);
+    --wa-frame-max-w: min(320px, 76vw);
+    --wa-frame-max-h: min(50vh, 460px);
+
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    display: grid;
+    grid-template-rows: auto 1fr auto auto;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                visibility 0.45s;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.wa-call-overlay.active {
+    pointer-events: auto;
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Frosted glass — background layer only (does not affect foreground content) */
+.wa-call-glass {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    backdrop-filter: blur(20px) saturate(1.15);
+    -webkit-backdrop-filter: blur(20px) saturate(1.15);
+    background: var(--wa-glass-bg);
+    pointer-events: none;
+}
+
+.wa-call-theme-wash {
+    position: absolute;
+    inset: 0;
+    background: var(--wa-theme-tint);
+    opacity: 0.35;
+    transition: background 0.6s ease;
+    /* No mix-blend on wash — keeps character colors vivid above this layer */
+}
+
+/* Top — name + encrypted subtitle */
+.wa-call-top {
+    position: relative;
+    z-index: 2;
+    padding: max(20px, env(safe-area-inset-top)) 24px 12px;
+    text-align: center;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+}
+
+.wa-call-name {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--wa-text);
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+}
+
+.wa-call-secure {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 8px 0 0;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--wa-text-muted);
+    letter-spacing: 0.15px;
+}
+
+.wa-call-secure i {
+    font-size: 0.62rem;
+    color: var(--wa-accent);
+    filter: drop-shadow(0 0 6px var(--wa-accent-glow));
+}
+
+/* Center — crisp portrait, fully visible, above blur layer */
+.wa-call-stage {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 20px 12px;
+    min-height: 0;
+    isolation: isolate;
+}
+
+.wa-call-frame {
+    position: relative;
+    z-index: 1;
+    width: var(--wa-frame-max-w);
+    max-height: var(--wa-frame-max-h);
+    aspect-ratio: 3 / 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 24px;
+    overflow: hidden;
+    background: transparent;
+    border: 1.5px solid var(--wa-border);
+    box-shadow:
+        0 0 0 1px var(--wa-accent-soft),
+        0 12px 40px rgba(0, 0, 0, 0.35),
+        0 0 32px var(--wa-accent-glow);
+    transition: transform 0.45s ease, box-shadow 0.45s ease;
+}
+
+.wa-call-overlay.active .wa-call-frame {
+    animation: waFrameIn 0.5s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+@keyframes waFrameIn {
+    from { transform: scale(0.94) translateY(10px); }
+    to { transform: scale(1) translateY(0); }
+}
+
+.wa-call-overlay.speaking .wa-call-frame {
+    transform: scale(1.015);
+    box-shadow:
+        0 0 0 2px var(--wa-accent),
+        0 16px 48px rgba(0, 0, 0, 0.4),
+        0 0 48px var(--wa-accent-glow);
+}
+
+.wa-call-avatar {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center bottom;
+    opacity: 1;
+    filter: none;
+    mix-blend-mode: normal;
+    image-rendering: auto;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    user-select: none;
+    -webkit-user-drag: none;
+    transition: transform 0.35s ease;
+}
+
+.wa-call-overlay.speaking .wa-call-avatar {
+    transform: scale(1.01);
+}
+
+/* Mid — TTS subtitle + PTT hint */
+.wa-call-mid {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px 10px;
+}
+
+.wa-call-subtitle {
+    max-width: 90%;
+    padding: 10px 16px;
+    border-radius: 14px;
+    background: var(--wa-dock-bg);
+    border: 1px solid var(--wa-border);
+    color: var(--wa-text);
+    font-size: 0.84rem;
+    text-align: center;
+    line-height: 1.45;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.3s, transform 0.3s;
+    box-shadow: 0 0 20px var(--wa-accent-glow);
+}
+
+.wa-call-subtitle.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.wa-call-ptt-hint {
+    padding: 5px 12px;
+    font-size: 0.7rem;
+    color: var(--wa-text-muted);
+    background: var(--wa-surface);
+    border-radius: 999px;
+    border: 1px solid var(--wa-border);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.wa-call-ptt-hint.visible {
+    opacity: 1;
+}
+
+.wa-call-ptt-hint kbd {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--wa-border);
+    color: var(--wa-accent);
+}
+
+.wa-call-ptt-hint strong {
+    color: var(--wa-accent);
+}
+
+/* Bottom — WA-style dock (4 controls: more, speaker, mic, end) */
+.wa-call-dock {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(20px, 5.5vw, 32px);
+    margin: 0 auto;
+    width: min(100%, 360px);
+    padding: 14px 24px max(24px, env(safe-area-inset-bottom));
+}
+
+.wa-dock-btn {
+    flex: 0 0 auto;
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--wa-border);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--wa-text);
+    font-size: 1.15rem;
+    cursor: pointer;
+    transition: transform 0.22s, box-shadow 0.22s, border-color 0.22s, background 0.22s;
+}
+
+.wa-dock-btn i {
+    color: var(--wa-text);
+    filter: drop-shadow(0 0 6px var(--wa-accent-glow));
+    transition: color 0.22s;
+}
+
+.wa-dock-btn:hover {
+    transform: translateY(-2px);
+    border-color: var(--wa-accent);
+    box-shadow: 0 0 18px var(--wa-accent-glow);
+}
+
+.wa-dock-btn:active {
+    transform: scale(0.94);
+}
+
+.wa-dock-btn.active,
+.wa-dock-btn.wa-ptt-active {
+    border-color: var(--wa-accent);
+    background: var(--wa-accent-soft);
+    box-shadow: 0 0 22px var(--wa-accent-glow);
+}
+
+.wa-dock-btn.wa-ptt-active {
+    animation: waMicPulse 0.9s ease-in-out infinite;
+}
+
+.wa-dock-btn.muted {
+    background: rgba(239, 68, 68, 0.22);
+    border-color: rgba(239, 68, 68, 0.55);
+}
+
+.wa-dock-btn.muted i {
+    color: #fca5a5;
+}
+
+@keyframes waMicPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+}
+
+.wa-dock-end {
+    flex: 0 0 auto;
+    width: 58px;
+    height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #ef4444, #dc2626);
+    color: #fff;
+    font-size: 1.25rem;
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgba(239, 68, 68, 0.5);
+    transition: transform 0.25s, box-shadow 0.25s;
+}
+
+.wa-dock-end i {
+    transform: rotate(135deg);
+}
+
+.wa-dock-end:hover {
+    transform: scale(1.06);
+    box-shadow: 0 8px 32px rgba(239, 68, 68, 0.6);
+}
+
+.wa-dock-end:active {
+    transform: scale(0.96);
+}
+
+/* More options popover */
+.wa-call-more-menu {
+    position: absolute;
+    bottom: calc(max(24px, env(safe-area-inset-bottom)) + 88px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-radius: 16px;
+    background: var(--wa-dock-bg);
+    border: 1px solid var(--wa-border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 24px var(--wa-accent-glow);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.25s, visibility 0.25s, transform 0.25s;
+}
+
+.wa-call-more-menu.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(-4px);
+}
+
+.wa-call-timer {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--wa-accent);
+    letter-spacing: 1px;
+}
+
+.wa-call-more-note {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--wa-text-muted);
+}
+
+.wa-call-more-note kbd {
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--wa-border);
+    color: var(--wa-accent);
+}
+
+/* Character accent overrides */
+.wa-call-overlay[data-character="shiro"] {
+    --wa-accent: #ff6b8a;
+    --wa-accent-soft: rgba(255, 107, 138, 0.32);
+    --wa-accent-glow: rgba(255, 107, 138, 0.45);
+}
+
+.wa-call-overlay[data-character="sishin"] {
+    --wa-accent: #4ade80;
+    --wa-accent-soft: rgba(74, 222, 128, 0.28);
+    --wa-accent-glow: rgba(74, 222, 128, 0.42);
+}
+
+@media (max-width: 380px) {
+    .wa-call-overlay {
+        --wa-frame-max-w: min(280px, 82vw);
+        --wa-frame-max-h: min(44vh, 400px);
+    }
+
+    .wa-dock-btn {
+        width: 46px;
+        height: 46px;
+        font-size: 1rem;
+    }
+
+    .wa-dock-end {
+        width: 52px;
+        height: 52px;
+    }
+
+    .wa-call-dock {
+        gap: 18px;
+        width: min(100%, 320px);
+    }
+}
+
+@media (min-height: 740px) {
+    .wa-call-overlay {
+        --wa-frame-max-h: min(54vh, 500px);
+    }
+}

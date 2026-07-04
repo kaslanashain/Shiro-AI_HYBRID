@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shiro AI · Companion</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/premium.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/wa-call.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
 
@@ -16,11 +20,11 @@
             align-items: flex-end;
             gap: 2px;
             margin-top: 4px;
-            padding-top: 4px;
-            border-top: 1px solid rgba(255,255,255,0.06);
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
             width: 100%;
             font-size: 12px;
-            color: rgba(255,255,255,0.6);
+            color: rgba(255, 255, 255, 0.55);
         }
         .weather-widget .weather-row {
             display: flex;
@@ -113,6 +117,9 @@
                 <div class="user-name">Kakak Shin</div>
             </div>
             <div class="header-right">
+                <span id="authUserChip" class="auth-user-chip" onclick="openAuthModal()" title="Login / Register">
+                    <i class="fas fa-sign-in-alt"></i> Masuk
+                </span>
                 <span class="battery"><i class="fas fa-battery-three-quarters"></i> <span id="batteryDisplay">85</span>%</span>
                 <span id="timeDisplay" class="time">00:00</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
@@ -132,6 +139,7 @@
 
         <section class="character-section">
             <div class="avatar-container">
+                <div id="live2dCanvas" class="live2d-container"></div>
                 <div id="avatarGlow" class="avatar-glow shiro-glow"></div>
                 <div id="avatarRing" class="avatar-ring shiro-ring"></div>
                 <img id="homeAvatar" class="avatar shiro-mode" src="{{ url_for('static', filename='images/shiro.png') }}" alt="Avatar" title="Ketuk untuk chat">
@@ -174,6 +182,18 @@
             <button class="action-btn" onclick="openSawer()"><i class="fas fa-gift"></i><span>Sawer</span></button>
             <button class="action-btn" onclick="toggleThemeMenu()"><i class="fas fa-palette"></i><span>Tema</span></button>
             <button class="action-btn" onclick="showMemori()"><i class="fas fa-brain"></i><span>Memori</span></button>
+            <button class="action-btn btn-diary" onclick="openDiary()" title="Diary Harian">
+                <i class="fas fa-book"></i><span>Diary</span>
+            </button>
+            <button class="action-btn btn-wardrobe" onclick="openWardrobe()" title="Wardrobe / Skin">
+                <i class="fas fa-tshirt"></i><span>Wardrobe</span>
+            </button>
+            <button class="action-btn btn-schedule" onclick="openSchedule()" title="Jadwal & Alarm">
+                <i class="fas fa-calendar-alt"></i><span>Jadwal</span>
+            </button>
+            <button class="action-btn" onclick="openStoryMode()" title="Petualangan RPG">
+                <i class="fas fa-book-open"></i><span>Story</span>
+            </button>
             <button class="action-btn" onclick="toggleVTuberMode()" id="btnVTuber">
                 <i class="fas fa-microphone-alt"></i>
                 <span>VTuber</span>
@@ -271,6 +291,160 @@
         </div>
     </div>
 
+    <!-- AUTH MODAL -->
+    <div id="authModal" class="modal glass-modal">
+        <div class="modal-content auth-panel">
+            <div class="modal-header">
+                <span>Akun Shiro AI</span>
+                <button onclick="closeAuthModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="color:rgba(255,255,255,0.4);font-size:0.8rem;margin-bottom:12px;">
+                    Login untuk memori &amp; chat history pribadi per karakter.
+                </p>
+                <input type="text" id="authUsername" placeholder="Username" autocomplete="username">
+                <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
+                <input type="text" id="authDisplayName" placeholder="Nama panggilan (register)">
+                <p id="authError" style="color:#ff6b8a;font-size:0.8rem;min-height:1.2em;"></p>
+                <button class="btn-premium" onclick="submitAuth('login')">Masuk</button>
+                <button class="btn-ghost" style="width:100%;margin-top:8px;" onclick="submitAuth('register')">Buat Akun Baru</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DAILY DIARY -->
+    <div id="diaryModal" class="modal glass-modal diary-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span><i class="fas fa-book"></i> Diary Harian</span>
+                <button type="button" onclick="closeDiary()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body diary-body">
+                <p style="color:rgba(255,255,255,0.45);font-size:0.78rem;margin-bottom:10px;">
+                    Tulis catatan hari ini — karakter aktif akan merespons sesuai mood afeksi.
+                </p>
+                <textarea id="diaryNoteInput" placeholder="Hari ini aku..." maxlength="600"></textarea>
+                <div id="diaryReaction" class="diary-reaction" data-mood="normal"></div>
+                <button type="button" id="diarySaveBtn" class="diary-save-btn" onclick="saveDiary()">Simpan &amp; Kirim ke Karakter</button>
+                <div id="diaryHistory" class="diary-history"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WARDROBE -->
+    <div id="wardrobeModal" class="modal glass-modal wardrobe-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span><i class="fas fa-tshirt"></i> Wardrobe — <span id="wardrobeCharLabel">Shiro</span></span>
+                <button type="button" onclick="closeWardrobe()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="wardrobe-tabs">
+                    <button type="button" class="wardrobe-tab active" data-char="shiro" onclick="switchWardrobeTab('shiro')">Shiro</button>
+                    <button type="button" class="wardrobe-tab" data-char="sishin" onclick="switchWardrobeTab('sishin')">Sishin</button>
+                </div>
+                <div id="wardrobeGrid" class="wardrobe-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCHEDULE / PLANNER -->
+    <div id="scheduleModal" class="modal glass-modal schedule-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span><i class="fas fa-calendar-alt"></i> Jadwal &amp; Alarm</span>
+                <button type="button" onclick="closeSchedule()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body schedule-body">
+                <div class="schedule-nav">
+                    <button type="button" class="schedule-nav-btn" id="schedulePrevMonth" title="Bulan sebelumnya"><i class="fas fa-chevron-left"></i></button>
+                    <h2 id="scheduleMonthTitle">Juli 2026</h2>
+                    <button type="button" class="schedule-nav-btn" id="scheduleNextMonth" title="Bulan berikutnya"><i class="fas fa-chevron-right"></i></button>
+                </div>
+                <div class="schedule-weekdays">
+                    <span>Min</span><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span>
+                </div>
+                <div id="scheduleGrid" class="schedule-grid"></div>
+
+                <p id="scheduleSelectedLabel" class="schedule-selected-label">Tanggal: <strong>—</strong></p>
+                <div id="scheduleEventList" class="schedule-events"></div>
+
+                <div class="schedule-form">
+                    <h3 id="scheduleFormHeading">Buat jadwal / alarm</h3>
+                    <div class="schedule-form-row">
+                        <input type="text" id="scheduleFormTitle" placeholder="Judul (Bangun, Meeting, ...)" maxlength="80">
+                    </div>
+                    <div class="schedule-form-row">
+                        <input type="date" id="scheduleFormDate">
+                        <input type="time" id="scheduleFormTime" value="07:00">
+                        <select id="scheduleFormType">
+                            <option value="alarm">Alarm</option>
+                            <option value="task">Tugas</option>
+                            <option value="event">Acara</option>
+                        </select>
+                    </div>
+                    <textarea id="scheduleFormVoice" placeholder="Suara kustom (opsional). Kosong = Shiro/Sishin yang aktif akan bicara otomatis." maxlength="200"></textarea>
+                    <div class="schedule-form-btns">
+                        <button type="button" class="schedule-btn-save" id="scheduleSaveBtn">Simpan Jadwal</button>
+                        <button type="button" class="schedule-btn-clear" id="scheduleClearBtn">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alarm popup — themed by active character -->
+    <div id="scheduleAlarmOverlay" class="schedule-alarm-overlay" data-character="shiro">
+        <div class="schedule-alarm-card">
+            <img id="scheduleAlarmAvatar" class="schedule-alarm-avatar" src="{{ url_for('static', filename='images/shiro.png') }}" alt="">
+            <div id="scheduleAlarmChar" class="schedule-alarm-char">Shiro</div>
+            <div id="scheduleAlarmTime" class="schedule-alarm-time">07:00</div>
+            <div id="scheduleAlarmTitle" class="schedule-alarm-title">Alarm</div>
+            <p id="scheduleAlarmMsg" class="schedule-alarm-msg"></p>
+            <button type="button" class="schedule-alarm-dismiss" onclick="dismissScheduleAlarm()">Oke, siap!</button>
+        </div>
+    </div>
+
+    <!-- STORY PICKER -->
+    <div id="storyPickerModal" class="modal glass-modal">
+        <div class="modal-content story-panel">
+            <div class="modal-header">
+                <span>Pilih Petualangan</span>
+                <button onclick="closeStoryPicker()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="color:rgba(255,255,255,0.5);font-size:0.85rem;margin-bottom:14px;">
+                    AI sebagai Dungeon Master — companion ikut petualangan!
+                </p>
+                <button class="story-choice-btn" onclick="startStoryAdventure('fantasy')">⚔️ Fantasy — Sihir &amp; Kastil</button>
+                <button class="story-choice-btn" onclick="startStoryAdventure('school')">🏫 Sekolah Ajaib</button>
+                <button class="story-choice-btn" onclick="startStoryAdventure('space')">🚀 Luar Angkasa</button>
+                <button class="story-choice-btn" onclick="startStoryAdventure('cozy')">🌸 Petualangan Santai</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STORY SCREEN -->
+    <div id="storyScreen" class="story-screen">
+        <div class="story-header">
+            <button class="btn-ghost" onclick="closeStoryMode()"><i class="fas fa-arrow-left"></i> Kembali</button>
+            <span id="storyTitle">Petualangan</span>
+            <span></span>
+        </div>
+        <div class="story-body">
+            <div class="story-stats">
+                <span class="story-stat" id="storyHp">HP: 100</span>
+                <span class="story-stat" id="storyLocation">Desa Awal</span>
+            </div>
+            <div id="storyScene" class="story-scene">Memuat cerita...</div>
+            <div id="storyChoices" class="story-choices"></div>
+            <div class="story-custom-row">
+                <input type="text" id="storyCustomAction" class="story-input" placeholder="Aksi bebas..." maxlength="200">
+                <button class="btn-premium" style="width:auto;padding:12px 18px;" onclick="storyCustomAction()">Kirim</button>
+            </div>
+        </div>
+    </div>
+
     <button id="fabChat" class="fab-chat" onclick="openChat()" title="Buka Chat">
         <i class="fas fa-comment-dots"></i>
         <span>Chat</span>
@@ -282,9 +456,80 @@
 </div>
 
 <div class="cursor-glow" id="cursorGlow"></div>
+<div id="vtuberSubtitle" class="vtuber-subtitle"></div>
+<div id="vtuberPttHint" class="vtuber-ptt-hint">Tahan <kbd>Space</kbd> saat bicara (Indonesia / Jepang)</div>
+
+<!-- WhatsApp-style VTuber video call overlay -->
+<div id="waCallOverlay" class="wa-call-overlay" aria-hidden="true" data-character="shiro" data-theme="night">
+    <div class="wa-call-glass" aria-hidden="true">
+        <div class="wa-call-theme-wash"></div>
+    </div>
+
+    <header class="wa-call-top">
+        <h1 id="waCallName" class="wa-call-name">Shiro</h1>
+        <p class="wa-call-secure">
+            <i class="fas fa-lock" aria-hidden="true"></i>
+            Terenkripsi secara end-to-end
+        </p>
+    </header>
+
+    <main class="wa-call-stage">
+        <div class="wa-call-frame" id="waCallFrame">
+            <img
+                id="waCallAvatar"
+                class="wa-call-avatar"
+                src="{{ url_for('static', filename='images/expressions/shiro_blush.png') }}"
+                alt="Shiro"
+                draggable="false"
+            >
+        </div>
+    </main>
+
+    <div class="wa-call-mid">
+        <div id="waCallSubtitle" class="wa-call-subtitle"></div>
+        <div id="waCallPttHint" class="wa-call-ptt-hint"></div>
+    </div>
+
+    <footer class="wa-call-dock">
+        <button type="button" class="wa-dock-btn" id="waCallMoreBtn" onclick="waCallToggle('more')" title="Opsi lainnya" aria-label="Opsi lainnya">
+            <i class="fas fa-ellipsis-v"></i>
+        </button>
+        <button type="button" class="wa-dock-btn" id="waCallSpeakerBtn" onclick="waCallToggle('speaker')" title="Speaker" aria-label="Toggle speaker">
+            <i class="fas fa-volume-up"></i>
+        </button>
+        <button type="button" class="wa-dock-btn" id="waCallMicBtn" onclick="waCallToggle('mic')" title="Mikrofon" aria-label="Toggle mikrofon">
+            <i class="fas fa-microphone"></i>
+        </button>
+        <button type="button" class="wa-dock-end" id="waCallEndBtn" onclick="endWACall()" title="Akhiri panggilan" aria-label="Akhiri panggilan">
+            <i class="fas fa-phone"></i>
+        </button>
+    </footer>
+
+    <div class="wa-call-more-menu" id="waCallMoreMenu" hidden>
+        <span id="waCallTimer" class="wa-call-timer">00:00</span>
+        <p class="wa-call-more-note">Tahan <kbd>Space</kbd> untuk bicara</p>
+    </div>
+</div>
 
 <!-- ===== MAIN JS (sudah mencakup cuaca via backend) ===== -->
+<script src="{{ url_for('static', filename='js/core/character-state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/core/affection-engine.js') }}"></script>
+<script src="{{ url_for('static', filename='js/core/system-awareness.js') }}"></script>
+<script src="{{ url_for('static', filename='js/core/asset-manager.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wa-call.js') }}"></script>
+<script src="{{ url_for('static', filename='js/random-events.js') }}"></script>
+<script src="{{ url_for('static', filename='js/diary.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wardrobe.js') }}"></script>
+<script src="{{ url_for('static', filename='js/idle-soundboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/schedule.js') }}"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/story.js') }}"></script>
+<script src="{{ url_for('static', filename='js/premium.js') }}"></script>
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.5.0/dist/index.min.js"></script>
+<script src="{{ url_for('static', filename='js/live2d.js') }}"></script>
 
 <!-- ===== TAMBAHAN SCRIPT: KURSOR & TANGGAL (cuaca di-handle main.js) ===== -->
 <script>
@@ -366,149 +611,29 @@
 (function() {
     'use strict';
 
-    // ===== BUAT SOCKET =====
-    var socket = io('http://localhost:5000', {
-        transports: ['websocket'],
+    var socket = io(window.location.origin, {
+        transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: 10,
         reconnectionDelay: 1000,
     });
 
-    // ===== KIRIMKAN SOCKET KE MAIN.JS =====
     if (typeof initSocket === 'function') {
         initSocket(socket);
         console.log('Socket passed to main.js');
     } else {
-        console.warn('initSocket tidak ditemukan di main.js, pastikan main.js sudah di-load');
+        console.warn('initSocket tidak ditemukan di main.js');
     }
 
     socket.on('connect', function() {
         console.log('WebSocket connected');
     });
 
-    socket.on('response', function(data) {
-        console.log('Response received:', data.text);
-        if (data.audio) {
-            var byteCharacters = atob(data.audio);
-            var byteNumbers = new Array(byteCharacters.length);
-            for (var i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            var byteArray = new Uint8Array(byteNumbers);
-            var audioBlob = new Blob([byteArray], { type: 'audio/wav' });
-            var audioUrl = URL.createObjectURL(audioBlob);
-            var audio = new Audio(audioUrl);
-            audio.play();
-        }
-        if (typeof addMessage === 'function') {
-            addMessage(data.text, 'shiro');
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof initLive2D === 'function') {
+            setTimeout(function() { initLive2D(); }, 600);
         }
     });
-
-    socket.on('error', function(err) {
-        console.error('Socket error:', err.message);
-    });
-
-    // ---- VTuber Mode ----
-    var vtuberMode = false;
-    var mediaRecorder = null;
-    var audioChunks = [];
-
-    window.toggleVTuberMode = function() {
-        vtuberMode = !vtuberMode;
-        var btn = document.getElementById('btnVTuber');
-        if (!btn) return;
-        if (vtuberMode) {
-            btn.style.background = '#ff6b8a';
-            btn.style.color = '#fff';
-            btn.querySelector('span').textContent = 'Berhenti';
-            startVTuber();
-        } else {
-            btn.style.background = '';
-            btn.style.color = '';
-            btn.querySelector('span').textContent = 'VTuber';
-            stopVTuber();
-        }
-    };
-
-    function startVTuber() {
-        if (!socket.connected) {
-            alert('Koneksi WebSocket belum siap. Tunggu sebentar.');
-            vtuberMode = false;
-            var btn = document.getElementById('btnVTuber');
-            if (btn) {
-                btn.style.background = '';
-                btn.style.color = '';
-                btn.querySelector('span').textContent = 'VTuber';
-            }
-            return;
-        }
-
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(function(stream) {
-                mediaRecorder = new MediaRecorder(stream, {
-                    mimeType: 'audio/webm;codecs=opus'
-                });
-                mediaRecorder.ondataavailable = function(e) {
-                    audioChunks.push(e.data);
-                };
-                mediaRecorder.onstop = function() {
-                    var blob = new Blob(audioChunks, { type: 'audio/webm' });
-                    audioChunks = [];
-                    var reader = new FileReader();
-                    reader.onloadend = function() {
-                        var base64 = reader.result.split(',')[1];
-                        if (socket && socket.connected) {
-                            socket.emit('audio', { audio: base64 });
-                            console.log('Audio sent to server');
-                        } else {
-                            console.warn('Socket tidak terhubung, audio tidak terkirim');
-                        }
-                    };
-                    reader.readAsDataURL(blob);
-                    if (vtuberMode) {
-                        mediaRecorder.start();
-                        setTimeout(function() {
-                            if (vtuberMode && mediaRecorder && mediaRecorder.state === 'recording') {
-                                mediaRecorder.stop();
-                            }
-                        }, 3000);
-                    }
-                };
-                mediaRecorder.start();
-                setTimeout(function() {
-                    if (mediaRecorder && mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                    }
-                }, 3000);
-            })
-            .catch(function(err) {
-                console.error('Mic error:', err);
-                alert('Akses mikrofon ditolak. Izinkan di pengaturan browser.');
-                vtuberMode = false;
-                var btn = document.getElementById('btnVTuber');
-                if (btn) {
-                    btn.style.background = '';
-                    btn.style.color = '';
-                    btn.querySelector('span').textContent = 'VTuber';
-                }
-            });
-    }
-
-    function stopVTuber() {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-        }
-        if (mediaRecorder && mediaRecorder.stream) {
-            mediaRecorder.stream.getTracks().forEach(function(track) {
-                track.stop();
-            });
-        }
-        mediaRecorder = null;
-        audioChunks = [];
-    }
-
-    console.log('VTuber mode ready');
 })();
 </script>
 </body>

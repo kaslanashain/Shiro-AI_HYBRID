@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-import os
+
 os.environ["OLLAMA_HOST"] = "http://127.0.0.1:11434"
 load_dotenv()
 
@@ -16,6 +16,9 @@ VOICEVOX_URL = os.environ.get("VOICEVOX_URL", "http://localhost:50021")
 FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
 FLASK_HOST = os.environ.get("FLASK_HOST", "127.0.0.1")
 FLASK_PORT = int(os.environ.get("FLASK_PORT", "5000"))
+SECRET_KEY = os.environ.get("SECRET_KEY", "shiro-dev-change-in-production")
+SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() in ("1", "true", "yes")
+CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
 
 MAX_CACHE = int(os.environ.get("MAX_CACHE", "100"))
 MAX_TTS_FILES = int(os.environ.get("MAX_TTS_FILES", "50"))
@@ -39,6 +42,16 @@ POSITIVE_KEYWORDS = ("sayang", "imut", "cantik", "cinta", "suka", "love", "daisu
 NEGATIVE_KEYWORDS = ("benci", "jelek", "bodoh", "jahat", "baka")
 FACT_KEYWORDS = ("ingat ya", "jangan lupa", "remember", "catat")
 
+ROMAJI_KEYWORDS = (
+    "konnichiwa", "ohayou", "ohayo", "konbanwa", "arigatou", "arigato", "gomen",
+    "gomennasai", "daisuki", "suki", "sayonara", "onii-chan", "onee-san", "onii",
+    "onee", "genki", "kawaii", "sugoi", "yatta", "itadakimasu", "gochisousama",
+    "kowai", "tanoshii", "ureshii", "itai", "hontou", "maji", "baka", "nya",
+    "neko", "desu", "masu", "chan", "san", "kun", "senpai", "kouhai", "matte",
+    "chotto", "doko", "nani", "doushite", "yokatta", "minna", "tomodachi",
+    "gambatte", "yoroshiku", "ittekimasu", "tadaima", "okaeri", "oyasumi",
+)
+
 
 # =============================================
 # TAMBAHAN: Verifikasi dan Logging (Opsional)
@@ -47,16 +60,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Pastikan OLLAMA_HOST terbaca
-logger.info(f"✅ OLLAMA_HOST = {os.environ.get('OLLAMA_HOST', 'TIDAK SET')}")
-logger.info(f"✅ OLLAMA_MODEL = {OLLAMA_MODEL}")
-logger.info(f"✅ VOICEVOX_URL = {VOICEVOX_URL}")
-
-# (Opsional) Cek koneksi ke Ollama saat startup
-# Hati-hati: bisa menambah waktu startup, aktifkan jika perlu
-# from ollama import Client
-# try:
-#     client = Client(host=os.environ.get('OLLAMA_HOST'))
-#     client.list()
-#     logger.info("✅ Koneksi ke Ollama berhasil")
-# except Exception as e:
-#     logger.warning(f"⚠️ Koneksi ke Ollama gagal: {e}")
+logger.info("[OK] OLLAMA_HOST = %s", os.environ.get("OLLAMA_HOST", "TIDAK SET"))
+logger.info("[OK] OLLAMA_MODEL = %s", OLLAMA_MODEL)
+logger.info("[OK] VOICEVOX_URL = %s", VOICEVOX_URL)

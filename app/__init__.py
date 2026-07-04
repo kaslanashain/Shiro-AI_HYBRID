@@ -20,8 +20,16 @@ def create_app():
         template_folder=os.path.join(config.BASE_DIR, "templates"),
         static_folder=os.path.join(config.BASE_DIR, "static"),
     )
+    app.secret_key = config.SECRET_KEY
+    app.config["SESSION_COOKIE_SECURE"] = config.SESSION_COOKIE_SECURE
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["PERMANENT_SESSION_LIFETIME"] = 86400 * 14
 
-    # DAETARKAN ROUTE HANYA SEKALI DI SINI
+    from app.auth import init_auth_tables
+    init_auth_tables()
+
+    # DAFTARKAN ROUTE HANYA SEKALI DI SINI
     register_routes(app)
 
     return app

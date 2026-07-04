@@ -58,6 +58,7 @@ def convert_audio_to_wav_ffmpeg(audio_bytes: bytes) -> bytes:
             "-i", input_path,
             "-ac", "1",
             "-ar", "16000",
+            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
             "-y",
             output_path
         ]
@@ -101,6 +102,21 @@ def cleanup_debug_audio():
         logger.warning(f"Cleanup debug audio error: {e}")
 
 
+def _is_silent_wav(wav_path: str, threshold_db: float = -38.0) -> bool:
+    """Cek apakah WAV hampir sunyi (mic tidak menangkap suara)."""
+    try:
+        cmd = [FFMPEG_PATH, "-i", wav_path, "-af", "volumedetect", "-f", "null", "-"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        for line in result.stderr.splitlines():
+            if "mean_volume" in line:
+                db = float(line.split("mean_volume:")[1].split("dB")[0].strip())
+                logger.info(f"Volume audio: {db:.1f} dB")
+                return db < threshold_db
+    except Exception as e:
+        logger.warning(f"Volume check error: {e}")
+    return False
+
+
 def transcribe_audio(audio_bytes: bytes) -> str:
     if not audio_bytes or len(audio_bytes) < 100:
         logger.warning("Audio terlalu pendek")
@@ -141,13 +157,36 @@ def transcribe_audio(audio_bytes: bytes) -> str:
             tmp_path = tmp.name
         logger.info(f"WAV saved: {tmp_path} ({os.path.getsize(tmp_path)} bytes)")
 
-        # === PRIORITAS: Google Speech Recognition ===
-        logger.info("Menggunakan Google Speech Recognition (online)...")
+        if _is_silent_wav(tmp_path):
+            logger.warning("Audio sunyi — mic tidak menangkap suara")
+            return None
+
+        # === PRIORITAS: Whisper (lokal, tanpa timeout jaringan) ===
+        model = get_whisper_model()
+        if model:
+            try:
+                start = time.time()
+                result = model.transcribe(
+                    tmp_path,
+                    language="id",
+                    fp16=False,
+                    condition_on_previous_text=False,
+                )
+                elapsed = (time.time() - start) * 1000
+                text = result.get("text", "").strip()
+                if text:
+                    logger.info(f"Whisper berhasil ({int(elapsed)}ms): {text[:50]}")
+                    return text
+                logger.warning("Whisper menghasilkan teks kosong")
+            except Exception as e:
+                logger.warning(f"Whisper error: {e}")
+
+        # === Fallback: Google Speech Recognition ===
+        logger.info("Mencoba Google Speech Recognition (online)...")
         try:
             import speech_recognition as sr
             recognizer = sr.Recognizer()
             with sr.AudioFile(tmp_path) as source:
-                recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 audio_data = recognizer.record(source)
             text = recognizer.recognize_google(audio_data, language="id-ID")
             if text:
@@ -156,27 +195,11 @@ def transcribe_audio(audio_bytes: bytes) -> str:
         except ImportError:
             logger.warning("SpeechRecognition tidak terinstal. Install: pip install SpeechRecognition")
         except sr.UnknownValueError:
-            logger.warning("Google STT tidak bisa mengenali suara (mungkin terlalu pelan)")
+            logger.warning("Google STT tidak bisa mengenali suara (mungkin terlalu pelan atau sunyi)")
         except sr.RequestError as e:
             logger.warning(f"Google STT request error: {e}")
         except Exception as e:
             logger.warning(f"Google STT error: {e}")
-
-        # === Fallback: Whisper ===
-        model = get_whisper_model()
-        if model:
-            try:
-                start = time.time()
-                result = model.transcribe(tmp_path, language="id", fp16=False)
-                elapsed = (time.time() - start) * 1000
-                text = result.get("text", "").strip()
-                if text:
-                    logger.info(f"Whisper berhasil ({int(elapsed)}ms): {text[:50]}")
-                    return text
-                else:
-                    logger.warning("Whisper menghasilkan teks kosong")
-            except Exception as e:
-                logger.warning(f"Whisper error: {e}")
 
         return None
 

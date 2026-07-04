@@ -5,8 +5,12 @@ google-generativeai>=0.8.0
 edge-tts>=6.1.0
 requests>=2.31.0
 Pillow>=10.0.0
-
-# Optional: local transformers stack (modules/llm.py, modules/emotion.py)
-# torch
-# transformers
-# bitsandbytes
+flask-socketio>=5.3.0
+python-socketio>=5.10.0
+gevent>=24.2.1
+gevent-websocket>=0.10.1
+groq>=0.9.0
+openai-whisper>=20231117
+soundfile>=0.12.1
+SpeechRecognition>=3.10.0
+gunicorn>=22.0.0

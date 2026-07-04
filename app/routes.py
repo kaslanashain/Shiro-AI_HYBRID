@@ -1,13 +1,16 @@
 import logging
 import os
-import requests  # ⬅️ TAMBAHAN: untuk panggil API cuaca dari backend
-from flask import jsonify, render_template, request, send_file
+import requests
+from flask import g, jsonify, render_template, request, send_file, session
 from app import config
+from app.auth import get_session_user, login_user, logout_user, register_user
+from app.companion_features import check_random_checkin, diary_react
 from app.chat import (
     apply_sawer, deskripsi_gambar, jawab_shiro,
     check_initiative, check_events, get_mood,
 )
-from app.db import muat_status
+from app.db import _resolve_user_id, muat_status
+from app.story import get_active_story, process_story_action, start_story, STORY_THEMES
 from app.tts import generate_speech, cleanup_old_tts_files
 
 logger = logging.getLogger(__name__)
@@ -23,6 +26,12 @@ def _chat_payload(data):
 def register_routes(app):
     """Daftarkan semua HTTP routes (TANPA SocketIO)"""
 
+    @app.before_request
+    def load_user_context():
+        user = get_session_user()
+        g.user_id = user["user_id"] if user else _resolve_user_id(None)
+        g.user_display = user["display_name"] if user else "Kakak Shin"
+
     @app.route("/")
     def index():
         return render_template("index.html")
@@ -33,7 +42,7 @@ def register_routes(app):
         pesan, karakter = _chat_payload(data)
         if not pesan:
             return jsonify({"error": "Pesan kosong"}), 400
-        jawaban_data, status = jawab_shiro(pesan, preferred_karakter=karakter)
+        jawaban_data, status = jawab_shiro(pesan, preferred_karakter=karakter, force_preferred=True)
         return jsonify({
             "reply": jawaban_data.get("text", ""),
             "suara": jawaban_data.get("suara", jawaban_data.get("text", "")),
@@ -47,17 +56,25 @@ def register_routes(app):
 
     @app.route("/initiative", methods=["GET"])
     def initiative():
-        result = check_initiative()
-        if result:
-            return jsonify(result)
-        return jsonify(None), 200
+        try:
+            result = check_initiative()
+            if result:
+                return jsonify(result)
+            return jsonify({}), 200
+        except Exception as e:
+            logger.exception("initiative error: %s", e)
+            return jsonify({}), 200
 
     @app.route("/event", methods=["GET"])
     def event_check():
-        result = check_events()
-        if result:
-            return jsonify(result)
-        return jsonify(None), 200
+        try:
+            result = check_events()
+            if result:
+                return jsonify(result)
+            return jsonify({}), 200
+        except Exception as e:
+            logger.exception("event error: %s", e)
+            return jsonify({}), 200
 
     @app.route("/mood", methods=["GET"])
     def mood():
@@ -65,6 +82,112 @@ def register_routes(app):
         if karakter not in ("shiro", "sishin"):
             karakter = "shiro"
         return jsonify(get_mood(karakter))
+
+    @app.route("/api/random-checkin", methods=["GET"])
+    def random_checkin():
+        try:
+            karakter = request.args.get("karakter", "shiro").strip().lower()
+            if karakter not in ("shiro", "sishin"):
+                karakter = "shiro"
+            idle_minutes = request.args.get("idle_minutes", 0, type=float)
+            result = check_random_checkin(karakter=karakter, idle_minutes=idle_minutes)
+            if result:
+                return jsonify(result)
+            return jsonify({}), 200
+        except Exception as e:
+            logger.exception("random-checkin error: %s", e)
+            return jsonify({}), 200
+
+    @app.route("/api/diary/react", methods=["POST"])
+    def diary_react_route():
+        try:
+            data = request.get_json(silent=True) or {}
+            note = (data.get("note") or "").strip()
+            karakter = (data.get("karakter") or "shiro").strip().lower()
+            use_llm = bool(data.get("use_llm", False))
+            payload, code = diary_react(note, karakter=karakter, use_llm=use_llm)
+            return jsonify(payload), code
+        except Exception as e:
+            logger.exception("diary react error: %s", e)
+            return jsonify({"error": "Gagal memproses diary"}), 500
+
+    @app.route("/api/wardrobe/catalog", methods=["GET"])
+    def wardrobe_catalog():
+        """Static outfit catalog for frontend asset manager."""
+        return jsonify({
+            "outfits": {
+                "shiro": [
+                    {
+                        "id": "live2d",
+                        "label": "Live2D VTuber",
+                        "mode": "live2d",
+                        "preview": "/static/images/shiro.png",
+                        "modelPath": "/static/live2d/shiro/shiro.model3.json",
+                    },
+                    {
+                        "id": "expressions",
+                        "label": "Ekspresi (Default)",
+                        "mode": "png",
+                        "preview": "/static/images/expressions/shiro_happy.png",
+                        "folder": "expressions",
+                        "files": {
+                            "happy": "shiro_happy.png",
+                            "sad": "shiro_sad.png",
+                            "blush": "shiro_blush.png",
+                            "fallback": "shiro.png",
+                        },
+                    },
+                    {
+                        "id": "classic",
+                        "label": "Klasik",
+                        "mode": "png",
+                        "preview": "/static/images/shiro.png",
+                        "folder": "root",
+                        "files": {
+                            "happy": "shiro.png",
+                            "sad": "shiro.png",
+                            "blush": "expressions/shiro_blush.png",
+                            "fallback": "shiro.png",
+                        },
+                    },
+                ],
+                "sishin": [
+                    {
+                        "id": "live2d",
+                        "label": "Live2D VTuber",
+                        "mode": "live2d",
+                        "preview": "/static/images/sishin.png",
+                        "modelPath": "/static/live2d/sishin/sishin.model3.json",
+                    },
+                    {
+                        "id": "expressions",
+                        "label": "Ekspresi (Default)",
+                        "mode": "png",
+                        "preview": "/static/images/expressions/sishin_normal.png",
+                        "folder": "expressions",
+                        "files": {
+                            "happy": "sishin_normal.png",
+                            "sad": "sishin_sad.png",
+                            "blush": "sishin_blush.png",
+                            "fallback": "sishin.png",
+                        },
+                    },
+                    {
+                        "id": "classic",
+                        "label": "Klasik",
+                        "mode": "png",
+                        "preview": "/static/images/sishin.png",
+                        "folder": "root",
+                        "files": {
+                            "happy": "sishin.png",
+                            "sad": "sishin.png",
+                            "blush": "expressions/sishin_blush.png",
+                            "fallback": "sishin.png",
+                        },
+                    },
+                ],
+            }
+        })
 
     @app.route("/tts", methods=["POST"])
     def tts():
@@ -110,7 +233,7 @@ def register_routes(app):
                 prompt_user = f"Kakak Shin mengirim gambar. {deskripsi}. Caption: '{caption}'. Komentari dengan manis!"
             else:
                 prompt_user = f"Kakak Shin mengirim gambar. {deskripsi}. Komentari dengan manis!"
-            jawaban_data, status = jawab_shiro(prompt_user, preferred_karakter=karakter)
+            jawaban_data, status = jawab_shiro(prompt_user, preferred_karakter=karakter, force_preferred=True)
             return jsonify({
                 "reply": jawaban_data.get("text", ""),
                 "suara": jawaban_data.get("suara", jawaban_data.get("text", "")),
@@ -134,7 +257,7 @@ def register_routes(app):
             karakter = (request.form.get("karakter") or "shiro").strip().lower()
         if not text:
             return jsonify({"error": "Teks suara kosong"}), 400
-        jawaban_data, status = jawab_shiro(text, preferred_karakter=karakter)
+        jawaban_data, status = jawab_shiro(text, preferred_karakter=karakter, force_preferred=True)
         return jsonify({
             "text": text,
             "reply": jawaban_data.get("text", ""),
@@ -166,6 +289,93 @@ def register_routes(app):
     @app.route("/about")
     def about():
         return render_template("about.html")
+
+    # ============================================================
+    # AUTH — multi-user
+    # ============================================================
+    @app.route("/api/auth/register", methods=["POST"])
+    def auth_register():
+        data = request.get_json(silent=True) or {}
+        username = (data.get("username") or "").strip()
+        password = data.get("password") or ""
+        display_name = (data.get("display_name") or username).strip()
+        user_id, err = register_user(username, password, display_name)
+        if err:
+            return jsonify({"error": err}), 400
+        login_user(username, password)
+        return jsonify({
+            "message": "Registrasi berhasil",
+            "user": get_session_user(),
+        })
+
+    @app.route("/api/auth/login", methods=["POST"])
+    def auth_login():
+        data = request.get_json(silent=True) or {}
+        user, err = login_user(
+            (data.get("username") or "").strip(),
+            data.get("password") or "",
+        )
+        if err:
+            return jsonify({"error": err}), 401
+        return jsonify({"message": "Login berhasil", "user": user})
+
+    @app.route("/api/auth/logout", methods=["POST"])
+    def auth_logout():
+        logout_user()
+        return jsonify({"message": "Logout berhasil"})
+
+    @app.route("/api/auth/me", methods=["GET"])
+    def auth_me():
+        user = get_session_user()
+        if not user:
+            return jsonify({"guest": True, "display_name": "Kakak Shin"})
+        return jsonify({"guest": False, **user})
+
+    # ============================================================
+    # STORY MODE — Dungeon Master
+    # ============================================================
+    @app.route("/api/story/themes", methods=["GET"])
+    def story_themes():
+        return jsonify({"themes": list(STORY_THEMES.keys()), "labels": STORY_THEMES})
+
+    @app.route("/api/story/start", methods=["POST"])
+    def story_start():
+        data = request.get_json(silent=True) or {}
+        karakter = (data.get("karakter") or "shiro").strip().lower()
+        if karakter not in ("shiro", "sishin"):
+            karakter = "shiro"
+        theme = (data.get("theme") or "fantasy").strip().lower()
+        title = (data.get("title") or "").strip() or None
+        try:
+            result = start_story(karakter=karakter, theme=theme, title=title)
+            if result.get("error"):
+                return jsonify(result), 500
+            return jsonify(result)
+        except Exception as exc:
+            logger.exception("Story start failed: %s", exc)
+            return jsonify({"error": "Gagal memulai story"}), 500
+
+    @app.route("/api/story/action", methods=["POST"])
+    def story_action():
+        data = request.get_json(silent=True) or {}
+        session_id = data.get("session_id")
+        action = (data.get("action") or "").strip()
+        if not session_id or not action:
+            return jsonify({"error": "session_id dan action wajib"}), 400
+        try:
+            result = process_story_action(int(session_id), action)
+            if result.get("error"):
+                return jsonify(result), 404
+            return jsonify(result)
+        except Exception as exc:
+            logger.exception("Story action failed: %s", exc)
+            return jsonify({"error": "Gagal memproses aksi"}), 500
+
+    @app.route("/api/story/active", methods=["GET"])
+    def story_active():
+        karakter = request.args.get("karakter", "shiro").strip().lower()
+        result = get_active_story(karakter=karakter)
+        return jsonify(result or {})
 
     # ============================================================
     # 🆕 TAMBAHAN: ENDPOINT CUACA (PROXY) – Menghindari CORS & Timeout

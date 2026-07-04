@@ -13,6 +13,8 @@ from app.utils import (
 
 def test_detect_japanese():
     assert detect_input_language("こんにちは") == "ja"
+    assert detect_input_language("konnichiwa Kak") == "ja"
+    assert detect_input_language("arigatou Sishin") == "ja"
     assert detect_input_language("Halo sayang") == "id"
 
 

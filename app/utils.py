@@ -4,7 +4,7 @@ import logging
 import re
 from collections import OrderedDict
 
-from app.config import MAX_CACHE
+from app.config import MAX_CACHE, ROMAJI_KEYWORDS
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +30,15 @@ def cache_set(key, value):
 
 
 def detect_input_language(text):
+    if not text:
+        return "id"
     for char in text:
         code = ord(char)
         if 0x3040 <= code <= 0x30FF or 0x4E00 <= code <= 0x9FFF:
             return "ja"
+    text_lower = text.lower()
+    if any(keyword in text_lower for keyword in ROMAJI_KEYWORDS):
+        return "ja"
     return "id"
 
 
@@ -49,7 +54,7 @@ def validasi_respon_teks(teks, konteks):
     if any(p in teks_lower for p in pola_fakta):
         if not any(p in konteks_lower for p in pola_fakta):
             return False
-    if len(teks) > 300:
+    if len(teks) > 400:
         return False
     return True
 
@@ -61,19 +66,19 @@ def sync_text_and_voice(teks_layar, teks_suara):
     return layar, suara_bersih or layar
 
 
-def saring_bahasa_alien(teks):
+def saring_bahasa_alien(teks, karakter="shiro"):
     teks_clean = str(teks).strip()
     teks_clean = teks_clean.replace("*", "").replace("_", "").replace('"', "").replace("`", "")
-    teks_clean = re.sub(r"^shiro:\s*", "", teks_clean, flags=re.IGNORECASE)
+    teks_clean = re.sub(r"^(shiro|sishin):\s*", "", teks_clean, flags=re.IGNORECASE)
     teks_clean = re.sub(r"<[^>]+>", "", teks_clean)
     teks_clean = re.sub(r"\s+", " ", teks_clean).strip()
     teks_clean = re.sub(r"\(Please note[^)]*\)", "", teks_clean)
     teks_clean = re.sub(r"\(I\'s been trying[^)]*\)", "", teks_clean)
     hitam = ["POCH", "Endian", "bridge", "webpack", "import ", "def ", "class ", "print("]
     if any(h in teks_clean for h in hitam):
-        return "Shiro agak bingung dengan bahasanya, Kak"
+        return "Maaf, aku agak bingung... bisa diulang?" if karakter == "sishin" else "Shiro agak bingung dengan bahasanya, Kak"
     if len(teks_clean) < 2:
-        return "Ehehe, Kakak Shin bilang apa? Shiro tadi terpesona liat Kakak"
+        return "Ehe, Kak bilang apa tadi?" if karakter == "sishin" else "Ehehe, Kakak Shin bilang apa? Shiro tadi terpesona liat Kakak"
     return teks_clean
 
 
@@ -113,7 +118,11 @@ def bersihkan_teks_tts(teks):
     return re.sub(r"\s+", " ", teks_bersih).strip()
 
 
-def build_konteks(riwayat, limit=4):
+def build_konteks(riwayat, limit=10):
     if not riwayat:
-        return ""
-    return "".join(f"{msg['role']}: {msg['content']}\n" for msg in riwayat[-limit:])
+        return "(belum ada percakapan sebelumnya)"
+    lines = []
+    for msg in riwayat[-limit:]:
+        label = "User" if msg["role"] == "user" else "Kamu"
+        lines.append(f"{label}: {msg['content']}")
+    return "\n".join(lines)
