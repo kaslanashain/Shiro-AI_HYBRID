@@ -8,9 +8,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
 
-    <!-- ===== TAMBAHAN STYLE CUACA & KURSOR ===== -->
+    <!-- ===== STYLE TAMBAHAN (CUACA & KURSOR) ===== -->
     <style>
-        /* Cuaca */
         .weather-widget {
             display: flex;
             flex-direction: column;
@@ -32,6 +31,8 @@
         }
         .weather-widget .weather-row .weather-icon {
             font-size: 16px;
+            width: 20px;
+            text-align: center;
         }
         .weather-widget .weather-row .weather-temp {
             font-weight: 600;
@@ -61,7 +62,6 @@
             50% { opacity: 1; }
         }
 
-        /* Efek kursor glow */
         .cursor-glow {
             position: fixed;
             pointer-events: none;
@@ -69,7 +69,7 @@
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(150, 120, 255, 0.3) 0%, rgba(150, 120, 255, 0) 70%);
+            background: radial-gradient(circle, rgba(150,120,255,0.3) 0%, rgba(150,120,255,0) 70%);
             transform: translate(-50%, -50%);
             transition: width 0.2s, height 0.2s, background 0.2s;
             mix-blend-mode: screen;
@@ -78,7 +78,15 @@
         .cursor-glow.active {
             width: 80px;
             height: 80px;
-            background: radial-gradient(circle, rgba(255, 120, 200, 0.4) 0%, rgba(255, 120, 200, 0) 70%);
+            background: radial-gradient(circle, rgba(255,120,200,0.4) 0%, rgba(255,120,200,0) 70%);
+        }
+
+        /* Hilangkan scrollbar pada avatar container */
+        .avatar-container {
+            overflow: visible !important;
+        }
+        .avatar-container::-webkit-scrollbar {
+            display: none;
         }
     </style>
 </head>
@@ -108,15 +116,14 @@
                 <span class="battery"><i class="fas fa-battery-three-quarters"></i> <span id="batteryDisplay">85</span>%</span>
                 <span id="timeDisplay" class="time">00:00</span>
                 <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
-
-                <!-- CUACA -->
+                <!-- WIDGET CUACA -->
                 <div class="weather-widget" id="weatherWidget">
-                    <div class="weather-row" id="weatherRow">
-                        <span class="weather-icon" id="weatherIcon">🌤️</span>
-                        <span class="weather-temp" id="weatherTemp">--°C</span>
-                        <span class="weather-desc" id="weatherDesc">memuat...</span>
+                    <div class="weather-row">
+                        <span class="weather-icon" id="weather-icon">🌤</span>
+                        <span class="weather-temp" id="weather-temp">--°C</span>
+                        <span class="weather-desc" id="weather-desc">memuat...</span>
                     </div>
-                    <div class="weather-date" id="weatherDate">
+                    <div class="weather-date">
                         <span class="day-name" id="dayName">--</span>, <span id="dateFull">-- -- ----</span>
                     </div>
                 </div>
@@ -127,11 +134,8 @@
             <div class="avatar-container">
                 <div id="avatarGlow" class="avatar-glow shiro-glow"></div>
                 <div id="avatarRing" class="avatar-ring shiro-ring"></div>
-                <!-- ===== AVATAR UTAMA ===== -->
                 <img id="homeAvatar" class="avatar shiro-mode" src="{{ url_for('static', filename='images/shiro.png') }}" alt="Avatar" title="Ketuk untuk chat">
-                <!-- ===== TAMBAHAN: BLINK OVERLAY ===== -->
                 <div class="blink-overlay" id="blinkOverlay"></div>
-                <!-- ================================= -->
                 <div class="switch-container">
                     <button id="btnShiro" class="switch-btn active" onclick="switchCharacter('shiro')" title="Shiro">
                         <img src="{{ url_for('static', filename='images/shiro.png') }}" alt="Shiro">
@@ -154,7 +158,7 @@
                 <div class="hp-track">
                     <div id="hpBar" class="hp-fill" style="width:50%"><div class="hp-shine"></div></div>
                 </div>
-                <span class="hp-label">AFeksi <span id="hpPercent">50</span>%</span>
+                <span class="hp-label">Afeksi <span id="hpPercent">50</span>%</span>
             </div>
 
             <div class="quote-box">
@@ -170,6 +174,10 @@
             <button class="action-btn" onclick="openSawer()"><i class="fas fa-gift"></i><span>Sawer</span></button>
             <button class="action-btn" onclick="toggleThemeMenu()"><i class="fas fa-palette"></i><span>Tema</span></button>
             <button class="action-btn" onclick="showMemori()"><i class="fas fa-brain"></i><span>Memori</span></button>
+            <button class="action-btn" onclick="toggleVTuberMode()" id="btnVTuber">
+                <i class="fas fa-microphone-alt"></i>
+                <span>VTuber</span>
+            </button>
         </div>
 
         <div id="themeMenu" class="theme-menu">
@@ -184,13 +192,11 @@
             <button class="theme-option" onclick="setTheme('rain')">Hujan</button>
         </div>
 
-        <!-- ===== PLAYLIST MENU - DINAMIS (DIISI OLEH JS) ===== -->
         <div id="playlistMenu" class="playlist-menu">
             <div class="playlist-header">
                 <span>Playlist BGM</span>
                 <button onclick="togglePlaylist()"><i class="fas fa-times"></i></button>
             </div>
-            <!-- Wadah kosong untuk item playlist, akan diisi oleh togglePlaylist() -->
             <div class="playlist-items"></div>
         </div>
 
@@ -275,37 +281,25 @@
     </footer>
 </div>
 
-<!-- ELEMEN KURSOR GLOW -->
 <div class="cursor-glow" id="cursorGlow"></div>
 
-<!-- ===== MAIN JS ===== -->
+<!-- ===== MAIN JS (sudah mencakup cuaca via backend) ===== -->
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
-<!-- ========================================================= -->
-<!-- ===== TAMBAHAN SCRIPT: CUACA, KURSOR ===== -->
-<!-- ========================================================= -->
+<!-- ===== TAMBAHAN SCRIPT: KURSOR & TANGGAL (cuaca di-handle main.js) ===== -->
 <script>
 (function() {
     'use strict';
 
-    // --------------------------------------------------------------
-    // 1. CUACA
-    // --------------------------------------------------------------
+    // ---- Update tanggal (tanpa cuaca) ----
     (function() {
-        var weatherIcon = document.getElementById('weatherIcon');
-        var weatherTemp = document.getElementById('weatherTemp');
-        var weatherDesc = document.getElementById('weatherDesc');
         var dayNameEl = document.getElementById('dayName');
         var dateFullEl = document.getElementById('dateFull');
 
-        var TIMEZONE = 'Asia/Jakarta';
-        var LAT = -6.2088;
-        var LON = 106.8456;
-
-        function getFormattedDate() {
+        function updateDate() {
             var now = new Date();
             var formatter = new Intl.DateTimeFormat('id-ID', {
-                timeZone: TIMEZONE,
+                timeZone: 'Asia/Jakarta',
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
@@ -320,68 +314,15 @@
                 else if (p.type === 'month') month = p.value;
                 else if (p.type === 'year') year = p.value;
             }
-            return { weekday: weekday, day: day, month: month, year: year };
+            if (dayNameEl) dayNameEl.textContent = weekday;
+            if (dateFullEl) dateFullEl.textContent = day + ' ' + month + ' ' + year;
         }
 
-        function updateDate() {
-            var d = getFormattedDate();
-            dayNameEl.textContent = d.weekday;
-            dateFullEl.textContent = d.day + ' ' + d.month + ' ' + d.year;
-        }
-
-        function mapWeatherCode(code) {
-            if (code === 0) return { desc: 'Cerah', emoji: '☀️' };
-            if (code === 1) return { desc: 'Sebagian Cerah', emoji: '🌤️' };
-            if (code === 2) return { desc: 'Berawan', emoji: '⛅' };
-            if (code === 3) return { desc: 'Mendung', emoji: '☁️' };
-            if (code >= 45 && code <= 48) return { desc: 'Kabut', emoji: '🌫️' };
-            if (code >= 51 && code <= 55) return { desc: 'Gerimis', emoji: '🌦️' };
-            if (code >= 56 && code <= 57) return { desc: 'Gerimis Beku', emoji: '🌧️' };
-            if (code >= 61 && code <= 65) return { desc: 'Hujan', emoji: '🌧️' };
-            if (code >= 66 && code <= 67) return { desc: 'Hujan Beku', emoji: '🌧️' };
-            if (code >= 71 && code <= 75) return { desc: 'Salju', emoji: '❄️' };
-            if (code >= 77) return { desc: 'Butiran Salju', emoji: '❄️' };
-            if (code >= 80 && code <= 82) return { desc: 'Hujan Deras', emoji: '🌧️' };
-            if (code >= 85 && code <= 86) return { desc: 'Hujan Salju', emoji: '🌨️' };
-            if (code >= 95 && code <= 99) return { desc: 'Badai Petir', emoji: '⛈️' };
-            return { desc: 'Berawan', emoji: '☁️' };
-        }
-
-        async function fetchWeather() {
-            var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON + '&current_weather=true&timezone=' + TIMEZONE;
-            try {
-                var resp = await fetch(url);
-                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                var data = await resp.json();
-                var current = data.current_weather;
-                if (!current) throw new Error('No data');
-                var temp = Math.round(current.temperature);
-                var code = current.weathercode;
-                var result = mapWeatherCode(code);
-                weatherTemp.textContent = temp + '°C';
-                weatherDesc.textContent = result.desc;
-                weatherIcon.textContent = result.emoji;
-            } catch (err) {
-                console.warn('Weather error:', err);
-                weatherTemp.textContent = '--°C';
-                weatherDesc.textContent = 'tidak tersedia';
-                weatherIcon.textContent = '🌐';
-            }
-        }
-
-        function initWeather() {
-            updateDate();
-            fetchWeather();
-            setInterval(fetchWeather, 600000);
-        }
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initWeather);
-        } else { initWeather(); }
+        updateDate();
+        setInterval(updateDate, 60000);
     })();
 
-    // --------------------------------------------------------------
-    // 2. EFEK KURSOR GLOW
-    // --------------------------------------------------------------
+    // ---- Kursor Glow ----
     (function() {
         var glow = document.getElementById('cursorGlow');
         if (!glow) return;
@@ -415,9 +356,160 @@
         document.addEventListener('mouseenter', function() { glow.style.opacity = '1'; });
     })();
 
-    console.log('✅ Cuaca & efek kursor aktif (tambahan dari index.html)');
+    console.log('Efek kursor aktif, cuaca di-handle oleh main.js');
 })();
 </script>
 
+<!-- ===== WEBSOCKET + VTUBER ===== -->
+<script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+<script>
+(function() {
+    'use strict';
+
+    // ===== BUAT SOCKET =====
+    var socket = io('http://localhost:5000', {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+    });
+
+    // ===== KIRIMKAN SOCKET KE MAIN.JS =====
+    if (typeof initSocket === 'function') {
+        initSocket(socket);
+        console.log('Socket passed to main.js');
+    } else {
+        console.warn('initSocket tidak ditemukan di main.js, pastikan main.js sudah di-load');
+    }
+
+    socket.on('connect', function() {
+        console.log('WebSocket connected');
+    });
+
+    socket.on('response', function(data) {
+        console.log('Response received:', data.text);
+        if (data.audio) {
+            var byteCharacters = atob(data.audio);
+            var byteNumbers = new Array(byteCharacters.length);
+            for (var i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            var byteArray = new Uint8Array(byteNumbers);
+            var audioBlob = new Blob([byteArray], { type: 'audio/wav' });
+            var audioUrl = URL.createObjectURL(audioBlob);
+            var audio = new Audio(audioUrl);
+            audio.play();
+        }
+        if (typeof addMessage === 'function') {
+            addMessage(data.text, 'shiro');
+        }
+    });
+
+    socket.on('error', function(err) {
+        console.error('Socket error:', err.message);
+    });
+
+    // ---- VTuber Mode ----
+    var vtuberMode = false;
+    var mediaRecorder = null;
+    var audioChunks = [];
+
+    window.toggleVTuberMode = function() {
+        vtuberMode = !vtuberMode;
+        var btn = document.getElementById('btnVTuber');
+        if (!btn) return;
+        if (vtuberMode) {
+            btn.style.background = '#ff6b8a';
+            btn.style.color = '#fff';
+            btn.querySelector('span').textContent = 'Berhenti';
+            startVTuber();
+        } else {
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.querySelector('span').textContent = 'VTuber';
+            stopVTuber();
+        }
+    };
+
+    function startVTuber() {
+        if (!socket.connected) {
+            alert('Koneksi WebSocket belum siap. Tunggu sebentar.');
+            vtuberMode = false;
+            var btn = document.getElementById('btnVTuber');
+            if (btn) {
+                btn.style.background = '';
+                btn.style.color = '';
+                btn.querySelector('span').textContent = 'VTuber';
+            }
+            return;
+        }
+
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(function(stream) {
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+                mediaRecorder.ondataavailable = function(e) {
+                    audioChunks.push(e.data);
+                };
+                mediaRecorder.onstop = function() {
+                    var blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    var reader = new FileReader();
+                    reader.onloadend = function() {
+                        var base64 = reader.result.split(',')[1];
+                        if (socket && socket.connected) {
+                            socket.emit('audio', { audio: base64 });
+                            console.log('Audio sent to server');
+                        } else {
+                            console.warn('Socket tidak terhubung, audio tidak terkirim');
+                        }
+                    };
+                    reader.readAsDataURL(blob);
+                    if (vtuberMode) {
+                        mediaRecorder.start();
+                        setTimeout(function() {
+                            if (vtuberMode && mediaRecorder && mediaRecorder.state === 'recording') {
+                                mediaRecorder.stop();
+                            }
+                        }, 3000);
+                    }
+                };
+                mediaRecorder.start();
+                setTimeout(function() {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, 3000);
+            })
+            .catch(function(err) {
+                console.error('Mic error:', err);
+                alert('Akses mikrofon ditolak. Izinkan di pengaturan browser.');
+                vtuberMode = false;
+                var btn = document.getElementById('btnVTuber');
+                if (btn) {
+                    btn.style.background = '';
+                    btn.style.color = '';
+                    btn.querySelector('span').textContent = 'VTuber';
+                }
+            });
+    }
+
+    function stopVTuber() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        if (mediaRecorder && mediaRecorder.stream) {
+            mediaRecorder.stream.getTracks().forEach(function(track) {
+                track.stop();
+            });
+        }
+        mediaRecorder = null;
+        audioChunks = [];
+    }
+
+    console.log('VTuber mode ready');
+})();
+</script>
 </body>
 </html>

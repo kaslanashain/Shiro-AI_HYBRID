@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import uuid
+import time
 import edge_tts
 import requests
 
@@ -37,6 +38,7 @@ class VoiceManager:
             return False
 
     def _detect_japanese(self, text):
+        # Deteksi karakter Jepang
         for char in text:
             code = ord(char)
             if 0x3040 <= code <= 0x30FF or 0x4E00 <= code <= 0x9FFF:
@@ -50,13 +52,23 @@ class VoiceManager:
         - Shiro: VOICEVOX speaker 107 (Tohoku Zunko)
         - Sishin: VOICEVOX speaker 8 (Kasukabe Tsumugi)
         """
+        if not text or not text.strip():
+            logger.warning("Teks kosong, tidak bisa generate suara")
+            return None
+
+        # Jika Voicevox tersedia, coba pakai
         if self.voicevox_available:
             try:
-                return await self._generate_voicevox(text, karakter)
+                result = await self._generate_voicevox(text, karakter)
+                if result and os.path.exists(result):
+                    logger.info("Voicevox berhasil untuk %s", karakter)
+                    return result
             except Exception as e:
-                logger.warning(f"VOICEVOX gagal untuk {karakter}: {e}, fallback ke Edge TTS")
+                logger.warning("VOICEVOX gagal untuk %s: %s, fallback ke Edge TTS", karakter, e)
+
         # Fallback Edge TTS
         lang = "jp" if self._detect_japanese(text) else "id"
+        logger.info("Menggunakan Edge TTS (bahasa: %s) untuk %s", lang, karakter)
         return await self._generate_edge_tts(text, lang)
 
     def _voicevox_query(self, text, speaker, params):
@@ -83,24 +95,31 @@ class VoiceManager:
         try:
             speaker = self.speakers.get(karakter, 107)
             params = self.voicevox_params.get(karakter, {})
+            # Jalankan request blocking di thread pool
             query_res = await asyncio.to_thread(self._voicevox_query, text, speaker, params)
             if query_res.status_code != 200:
-                logger.warning("Voicevox query failed: %s", query_res.status_code)
-                return await self._generate_edge_tts(text, "jp")
+                logger.warning("Voicevox query gagal: status %s", query_res.status_code)
+                return None
+
             audio_res = await asyncio.to_thread(
                 self._voicevox_synthesis, speaker, query_res.json()
             )
             if audio_res.status_code != 200:
-                logger.warning("Voicevox synthesis failed: %s", audio_res.status_code)
-                return await self._generate_edge_tts(text, "jp")
+                logger.warning("Voicevox synthesis gagal: status %s", audio_res.status_code)
+                return None
+
             file_name = f"{karakter}_voicevox_{uuid.uuid4().hex}.wav"
             file_path = os.path.join(self.temp_dir, file_name)
             with open(file_path, "wb") as f:
                 f.write(audio_res.content)
             return file_path
+
+        except asyncio.TimeoutError:
+            logger.warning("Voicevox timeout")
+            return None
         except Exception as exc:
             logger.exception("Voicevox error: %s", exc)
-            return await self._generate_edge_tts(text, "jp")
+            return None
 
     async def _generate_edge_tts(self, text, bahasa="id"):
         try:
@@ -109,7 +128,13 @@ class VoiceManager:
             file_name = f"edge_{bahasa}_{uuid.uuid4().hex}.mp3"
             file_path = os.path.join(self.temp_dir, file_name)
             await communicate.save(file_path)
-            return file_path
+            if os.path.exists(file_path):
+                logger.debug("Edge TTS saved: %s", file_path)
+                return file_path
+            return None
+        except asyncio.TimeoutError:
+            logger.warning("Edge TTS timeout")
+            return None
         except Exception as exc:
             logger.exception("EdgeTTS error: %s", exc)
             return None

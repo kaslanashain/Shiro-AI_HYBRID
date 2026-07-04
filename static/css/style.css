@@ -1009,3 +1009,24 @@ html, body {
         opacity: 1;
     }
 }
+/* HILANGKAN SCROLLBAR BAWAAN - TAPI TETAP BISA DIGESER */
+::-webkit-scrollbar {
+    width: 0px !important;
+    height: 0px !important;
+    background: transparent !important;
+}
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb { background: transparent !important; }
+* { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+
+/* KHUSUS area chat biar mulus */
+.chat-messages, #chatContainer, .scrollable-area {
+    overflow-y: auto !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+.chat-messages::-webkit-scrollbar, 
+#chatContainer::-webkit-scrollbar, 
+.scrollable-area::-webkit-scrollbar {
+    display: none !important;
+}

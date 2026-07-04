@@ -11,6 +11,7 @@ venv/
 voicevox_engine/
 *.gguf
 test_voicevox.wav
+debug_audio/
 # Virtual Environment
 venv/
 

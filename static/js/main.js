@@ -45,7 +45,7 @@ function toggleFullscreen() {
     if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen();
     } else if (document.exitFullscreen) {
-        document.exitFullscreen();
+        document.documentElement.exitFullscreen();
     }
 }
 
@@ -363,22 +363,22 @@ function switchCharacter(char) {
 // SEND MESSAGE (FUNGSI UTAMA – GLOBAL)
 // ==========================================
 window.sendMessage = function() {
-    console.log('🚀 sendMessage dipanggil!');
+    console.log('sendMessage dipanggil');
 
     var input = document.getElementById('userInput');
     if (!input) {
-        console.warn('❌ userInput tidak ditemukan');
+        console.warn('userInput tidak ditemukan');
         return;
     }
 
     var message = input.value.trim();
     if (!message) {
-        console.warn('⚠️ Pesan kosong');
+        console.warn('Pesan kosong');
         return;
     }
 
     var char = window.currentCharacter || 'shiro';
-    console.log('📤 Mengirim pesan untuk karakter:', char);
+    console.log('Mengirim pesan untuk karakter:', char);
 
     addMessage(message, 'user');
     showTypingIndicator();
@@ -413,7 +413,7 @@ window.sendMessage = function() {
         hideTypingIndicator();
     })
     .catch(function(error) {
-        console.error('❌ Send error:', error);
+        console.error('Send error:', error);
         addMessage('Maaf, ada masalah koneksi.', 'shiro');
         input.disabled = false;
         if (button) button.disabled = false;
@@ -479,7 +479,7 @@ if (fileInput) {
 
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'pesan-shiro';
-        loadingDiv.textContent = '💭 Shiro sedang melihat gambarmu...';
+        loadingDiv.textContent = 'Shiro sedang melihat gambarmu...';
         loadingDiv.id = 'loading-indicator';
         if (riwayat) riwayat.appendChild(loadingDiv);
         if (riwayat) riwayat.scrollTop = riwayat.scrollHeight;
@@ -505,12 +505,12 @@ if (fileInput) {
                     updateStatusBar(data.status);
                 }
             } else {
-                tambahPesanShiro('Shiro tidak bisa melihat gambar itu... 😢');
+                tambahPesanShiro('Shiro tidak bisa melihat gambar itu...');
             }
         } catch (error) {
             const loading = document.getElementById('loading-indicator');
             if (loading) loading.remove();
-            tambahPesanShiro('Gagal mengirim gambar... 😭');
+            tambahPesanShiro('Gagal mengirim gambar...');
             console.error(error);
         }
 
@@ -596,7 +596,7 @@ function showNotification(karakter, pesan) {
         box-shadow: 0 10px 40px rgba(0,0,0,0.4);
         font-family: 'Quicksand', sans-serif;
     `;
-    const nama = karakter === 'shiro' ? '💕 Shiro' : '🌸 Sishin';
+    const nama = karakter === 'shiro' ? 'Shiro' : 'Sishin';
     notif.innerHTML = `<strong>${nama}</strong><br>${pesan}`;
     notif.onclick = function() {
         this.remove();
@@ -640,7 +640,7 @@ function closeChat() {
 // EVENT LISTENERS (DIPASANG SETELAH DOM SIAP)
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ DOM siap, memasang event listener...');
+    console.log('DOM siap, memasang event listener...');
 
     var sendBtn = document.getElementById('sendBtn');
     if (sendBtn) {
@@ -648,9 +648,9 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             window.sendMessage();
         });
-        console.log('✅ Event listener tombol kirim terpasang');
+        console.log('Event listener tombol kirim terpasang');
     } else {
-        console.warn('❌ tombol kirim (sendBtn) tidak ditemukan di HTML');
+        console.warn('tombol kirim (sendBtn) tidak ditemukan di HTML');
     }
 
     var userInput = document.getElementById('userInput');
@@ -661,7 +661,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.sendMessage();
             }
         });
-        console.log('✅ Event listener Enter terpasang');
+        console.log('Event listener Enter terpasang');
     }
 
     var micBtn = document.getElementById('tombol-mic');
@@ -705,12 +705,19 @@ document.addEventListener('DOMContentLoaded', function() {
     createLeaves();
     createSnow();
 
+    // ===== TAMBAHAN: CUACA DAN TEMA OTOMATIS =====
     var savedTheme = localStorage.getItem('shiro_theme');
-    if (savedTheme) setTheme(savedTheme);
-    else setTheme('night');
+    if (savedTheme) {
+        setTheme(savedTheme);
+    } else {
+        updateThemeByTime();
+    }
+    fetchWeather();
+    setInterval(fetchWeather, 600000); // refresh setiap 10 menit
+    // ===== AKHIR TAMBAHAN =====
 
     refreshStatus();
-    console.log('✅ Shiro AI initialized.');
+    console.log('Shiro AI initialized.');
 });
 
 // ==========================================
@@ -1231,3 +1238,443 @@ document.getElementById('homeAvatar')?.addEventListener('click', function() {
 // ==========================================
 console.log('Shiro AI initialized.');
 console.log('Fitur konteks antar karakter diaktifkan (30% kemungkinan).');
+
+// ================================================================
+// TAMBAHAN: FUNGSI CUACA DAN TEMA OTOMATIS
+// ================================================================
+
+/**
+ * Mengambil data cuaca dari backend Flask (/api/weather) dan update tampilan.
+ * Mencoba mendapatkan lokasi pengguna via Geolocation API, fallback ke Jakarta.
+ */
+async function fetchWeather() {
+    try {
+        let lat = '-6.2088';
+        let lon = '106.8456';
+
+        if (navigator.geolocation) {
+            try {
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        timeout: 5000,
+                        enableHighAccuracy: false
+                    });
+                });
+                lat = position.coords.latitude.toFixed(4);
+                lon = position.coords.longitude.toFixed(4);
+            } catch (geoError) {
+                console.warn('Geolocation gagal, pakai default Jakarta:', geoError.message);
+            }
+        }
+
+        const response = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+
+        if (data.error) {
+            console.warn('Weather API error:', data.error);
+            updateWeatherUI(null);
+            return;
+        }
+
+        updateWeatherUI(data);
+
+    } catch (error) {
+        console.error('Gagal mengambil cuaca:', error);
+        updateWeatherUI(null);
+    }
+}
+
+/**
+ * Update elemen HTML yang menampilkan suhu, kondisi, dan ikon cuaca.
+ * Jika data null, tampilkan pesan error.
+ */
+function updateWeatherUI(data) {
+    const tempEl = document.getElementById('weather-temp');
+    const descEl = document.getElementById('weather-desc');
+    const iconEl = document.getElementById('weather-icon');
+
+    if (!tempEl || !descEl) {
+        return;
+    }
+
+    if (!data || !data.current_weather) {
+        tempEl.textContent = '--°C';
+        descEl.textContent = 'Tidak tersedia';
+        if (iconEl) iconEl.className = 'wi wi-na';
+        return;
+    }
+
+    const temp = data.current_weather.temperature;
+    const weatherCode = data.current_weather.weathercode;
+
+    let desc = 'Cerah';
+    let icon = 'wi wi-day-sunny';
+
+    if (weatherCode >= 0 && weatherCode <= 1) {
+        desc = 'Cerah';
+        icon = 'wi wi-day-sunny';
+    } else if (weatherCode === 2) {
+        desc = 'Berawan Sebagian';
+        icon = 'wi wi-day-cloudy';
+    } else if (weatherCode === 3) {
+        desc = 'Berawan';
+        icon = 'wi wi-cloud';
+    } else if (weatherCode >= 45 && weatherCode <= 48) {
+        desc = 'Kabut';
+        icon = 'wi wi-fog';
+    } else if (weatherCode >= 51 && weatherCode <= 55) {
+        desc = 'Gerimis';
+        icon = 'wi wi-sprinkle';
+    } else if (weatherCode >= 61 && weatherCode <= 65) {
+        desc = 'Hujan';
+        icon = 'wi wi-rain';
+    } else if (weatherCode >= 71 && weatherCode <= 75) {
+        desc = 'Salju';
+        icon = 'wi wi-snow';
+    } else if (weatherCode >= 80 && weatherCode <= 82) {
+        desc = 'Hujan Deras';
+        icon = 'wi wi-showers';
+    } else if (weatherCode >= 95 && weatherCode <= 99) {
+        desc = 'Badai Petir';
+        icon = 'wi wi-thunderstorm';
+    } else {
+        desc = 'Cuaca Lain';
+        icon = 'wi wi-cloudy';
+    }
+
+    tempEl.textContent = Math.round(temp) + '°C';
+    descEl.textContent = desc;
+    if (iconEl) {
+        iconEl.className = icon;
+    }
+}
+
+/**
+ * Menentukan tema berdasarkan waktu dan mengaktifkannya.
+ * Hanya dipanggil jika tidak ada tema tersimpan di localStorage.
+ */
+function updateThemeByTime() {
+    const hour = new Date().getHours();
+    let theme = 'night';
+
+    if (hour >= 5 && hour < 11) {
+        theme = 'morning';
+    } else if (hour >= 11 && hour < 16) {
+        theme = 'afternoon';
+    } else if (hour >= 16 && hour < 19) {
+        theme = 'evening';
+    } else {
+        theme = 'night';
+    }
+
+    setTheme(theme);
+    console.log('Tema otomatis berdasarkan waktu:', theme);
+}
+
+// ================================================================
+// PERBAIKAN VTUBER MODE - BGM TIDAK TERGANGGU & SOCKET STABIL
+// ================================================================
+
+// Simpan referensi socket global
+var socket = null;
+var vtuberMode = false;
+var vtuberMediaRecorder = null;
+var vtuberAudioChunks = [];
+var vtuberStream = null;
+var vtuberRecordingTimer = null;
+var vtuberRetryCount = 0;
+var vtuberMaxRetries = 3;
+
+// Fungsi untuk inisialisasi socket (dipanggil dari index.html)
+function initSocket(socketInstance) {
+    socket = socketInstance;
+    console.log('Socket connected for VTuber');
+    
+    // Set up socket event listeners untuk reconnect
+    if (socket) {
+        socket.on('connect', function() {
+            console.log('Socket reconnected for VTuber');
+            // Jika mode VTuber aktif, restart rekaman
+            if (vtuberMode) {
+                console.log('Restarting VTuber recording after reconnect');
+                stopVTuber();
+                setTimeout(startVTuber, 500);
+            }
+        });
+        
+        socket.on('disconnect', function() {
+            console.warn('Socket disconnected for VTuber');
+            // Hentikan rekaman jika socket disconnect
+            if (vtuberMode) {
+                stopVTuber();
+                // Tampilkan notifikasi
+                if (typeof showNotification === 'function') {
+                    showNotification('shiro', 'Koneksi terputus, mencoba menyambung kembali...');
+                }
+            }
+        });
+    }
+}
+
+// VTUBER MODE - toggle
+window.toggleVTuberMode = function() {
+    vtuberMode = !vtuberMode;
+    var btn = document.getElementById('btnVTuber');
+    if (!btn) return;
+
+    if (vtuberMode) {
+        btn.style.background = '#ff6b8a';
+        btn.style.color = '#fff';
+        btn.querySelector('span').textContent = 'Berhenti';
+        startVTuber();
+    } else {
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.querySelector('span').textContent = 'VTuber';
+        stopVTuber();
+    }
+};
+
+function startVTuber() {
+    // Reset retry counter
+    vtuberRetryCount = 0;
+    
+    if (!socket || !socket.connected) {
+        console.warn('Socket not connected, attempting to reconnect...');
+        if (socket && typeof socket.connect === 'function') {
+            socket.connect();
+        }
+        // Coba lagi setelah delay
+        setTimeout(function() {
+            if (!socket || !socket.connected) {
+                alert('Koneksi WebSocket belum siap. Pastikan server berjalan.');
+                vtuberMode = false;
+                var btn = document.getElementById('btnVTuber');
+                if (btn) {
+                    btn.style.background = '';
+                    btn.style.color = '';
+                    btn.querySelector('span').textContent = 'VTuber';
+                }
+                return;
+            }
+            // Jika socket sudah siap, mulai rekaman
+            if (vtuberMode) {
+                startVTuberRecording();
+            }
+        }, 1000);
+        return;
+    }
+    
+    // Jika socket sudah siap, langsung mulai
+    startVTuberRecording();
+}
+
+function startVTuberRecording() {
+    // Minta izin mikrofon
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(function(stream) {
+            // Simpan stream untuk cleanup
+            vtuberStream = stream;
+            
+            // Gunakan format yang didukung browser
+            var mimeType = 'audio/webm;codecs=opus';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'audio/webm';
+            }
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'audio/mp4';
+            }
+            
+            vtuberMediaRecorder = new MediaRecorder(stream, {
+                mimeType: mimeType
+            });
+
+            vtuberAudioChunks = [];
+
+            vtuberMediaRecorder.ondataavailable = function(e) {
+                if (e.data.size > 0) {
+                    vtuberAudioChunks.push(e.data);
+                }
+            };
+
+            vtuberMediaRecorder.onstop = function() {
+                // Jika socket tidak terhubung, jangan kirim
+                if (!socket || !socket.connected) {
+                    console.warn('Socket tidak terhubung, audio tidak terkirim');
+                    // Hentikan mode VTuber jika socket mati
+                    if (vtuberMode) {
+                        vtuberMode = false;
+                        var btn = document.getElementById('btnVTuber');
+                        if (btn) {
+                            btn.style.background = '';
+                            btn.style.color = '';
+                            btn.querySelector('span').textContent = 'VTuber';
+                        }
+                        // Tampilkan notifikasi
+                        if (typeof showNotification === 'function') {
+                            showNotification('shiro', 'Koneksi terputus. VTuber dinonaktifkan.');
+                        }
+                    }
+                    return;
+                }
+
+                var blob = new Blob(vtuberAudioChunks, { type: 'audio/webm' });
+                vtuberAudioChunks = [];
+
+                if (blob.size < 500) {
+                    console.warn('Audio terlalu kecil, mungkin tidak ada suara');
+                    // Kirim notifikasi
+                    if (typeof showNotification === 'function') {
+                        showNotification('shiro', 'Suara terlalu pelan, coba bicara lebih keras.');
+                    }
+                    // Lanjutkan rekaman jika mode masih aktif
+                    if (vtuberMode && vtuberMediaRecorder) {
+                        scheduleNextRecording();
+                    }
+                    return;
+                }
+
+                // Konversi blob ke base64
+                var reader = new FileReader();
+                reader.onloadend = function() {
+                    var base64Audio = reader.result.split(',')[1];
+                    if (socket && socket.connected) {
+                        socket.emit('audio', { audio: base64Audio });
+                        console.log('Audio sent to server (' + blob.size + ' bytes)');
+                    } else {
+                        console.warn('Socket tidak terhubung, audio tidak terkirim');
+                    }
+                };
+                reader.readAsDataURL(blob);
+
+                // Jadwalkan rekaman berikutnya jika mode masih aktif
+                if (vtuberMode && vtuberMediaRecorder) {
+                    scheduleNextRecording();
+                }
+            };
+
+            // Mulai rekaman pertama
+            vtuberMediaRecorder.start();
+            console.log('VTuber recording started');
+            
+            // Hentikan setelah 3 detik untuk mengirim data
+            vtuberRecordingTimer = setTimeout(function() {
+                if (vtuberMediaRecorder && vtuberMediaRecorder.state === 'recording') {
+                    vtuberMediaRecorder.stop();
+                }
+            }, 3000);
+        })
+        .catch(function(err) {
+            console.error('Mic error:', err);
+            // Jika error karena user menolak izin
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                alert('Akses mikrofon ditolak. Izinkan di pengaturan browser dan refresh halaman.');
+            } else {
+                alert('Gagal mengakses mikrofon: ' + err.message);
+            }
+            vtuberMode = false;
+            var btn = document.getElementById('btnVTuber');
+            if (btn) {
+                btn.style.background = '';
+                btn.style.color = '';
+                btn.querySelector('span').textContent = 'VTuber';
+            }
+        });
+}
+
+function scheduleNextRecording() {
+    // Hapus timer lama jika ada
+    if (vtuberRecordingTimer) {
+        clearTimeout(vtuberRecordingTimer);
+        vtuberRecordingTimer = null;
+    }
+    
+    // Cek socket sebelum memulai rekaman baru
+    if (!socket || !socket.connected) {
+        console.warn('Socket tidak terhubung, menunggu reconnect...');
+        // Coba reconnect
+        if (socket && typeof socket.connect === 'function') {
+            socket.connect();
+        }
+        // Coba lagi setelah delay
+        setTimeout(function() {
+            if (vtuberMode && socket && socket.connected) {
+                // Jika socket sudah terhubung, mulai rekaman
+                if (vtuberMediaRecorder && vtuberMediaRecorder.state === 'inactive') {
+                    vtuberMediaRecorder.start();
+                    vtuberRecordingTimer = setTimeout(function() {
+                        if (vtuberMediaRecorder && vtuberMediaRecorder.state === 'recording') {
+                            vtuberMediaRecorder.stop();
+                        }
+                    }, 3000);
+                }
+            } else if (vtuberMode) {
+                // Jika masih gagal, nonaktifkan mode
+                console.warn('Socket masih tidak terhubung, menonaktifkan VTuber');
+                vtuberMode = false;
+                var btn = document.getElementById('btnVTuber');
+                if (btn) {
+                    btn.style.background = '';
+                    btn.style.color = '';
+                    btn.querySelector('span').textContent = 'VTuber';
+                }
+                if (typeof showNotification === 'function') {
+                    showNotification('shiro', 'Koneksi gagal. VTuber dinonaktifkan.');
+                }
+            }
+        }, 2000);
+        return;
+    }
+    
+    // Jika mode aktif dan socket terhubung, lanjutkan rekaman
+    if (vtuberMode && vtuberMediaRecorder && vtuberMediaRecorder.state === 'inactive') {
+        try {
+            vtuberMediaRecorder.start();
+            vtuberRecordingTimer = setTimeout(function() {
+                if (vtuberMediaRecorder && vtuberMediaRecorder.state === 'recording') {
+                    vtuberMediaRecorder.stop();
+                }
+            }, 3000);
+        } catch (e) {
+            console.warn('Error starting recording:', e);
+            // Coba lagi setelah delay
+            setTimeout(scheduleNextRecording, 1000);
+        }
+    }
+}
+
+function stopVTuber() {
+    // Hapus timer
+    if (vtuberRecordingTimer) {
+        clearTimeout(vtuberRecordingTimer);
+        vtuberRecordingTimer = null;
+    }
+    
+    // Stop MediaRecorder
+    if (vtuberMediaRecorder) {
+        try {
+            if (vtuberMediaRecorder.state !== 'inactive') {
+                vtuberMediaRecorder.stop();
+            }
+        } catch (e) {
+            console.warn('Error stopping recorder:', e);
+        }
+        vtuberMediaRecorder = null;
+    }
+    
+    // Stop tracks stream
+    if (vtuberStream) {
+        try {
+            vtuberStream.getTracks().forEach(function(track) {
+                track.stop();
+            });
+        } catch (e) {
+            console.warn('Error stopping tracks:', e);
+        }
+        vtuberStream = null;
+    }
+    
+    vtuberAudioChunks = [];
+    console.log('VTuber recording stopped');
+}
