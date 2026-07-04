@@ -20,6 +20,11 @@ var AVATAR_EXPRESSIONS = {
     }
 };
 
+var AVATAR_SVG_FALLBACK = {
+    shiro: '/static/images/shiro.png',
+    sishin: '/static/images/sishin.png'
+};
+
 function getActiveCharacter() {
     if (window.CharacterState) return CharacterState.get();
     return window.currentCharacter || 'shiro';
@@ -37,11 +42,11 @@ function getAvatarExpressionSrc(char, affection) {
             affection: affection,
             context: 'home'
         });
-        return resolved.url;
+        return resolved.url || resolved.fallback || AVATAR_SVG_FALLBACK[char];
     }
     char = window.CharacterState ? CharacterState.normalize(char) : (char === 'sishin' ? 'sishin' : 'shiro');
     var s = typeof affection === 'number' ? affection : getActiveAffection();
-    var paths = AVATAR_EXPRESSIONS[char];
+    var paths = AVATAR_EXPRESSIONS[char] || AVATAR_EXPRESSIONS.shiro;
     var threshold = window.AffectionEngine ? AffectionEngine.SAD_THRESHOLD : 40;
     return s < threshold ? paths.sad : paths.happy;
 }
@@ -65,10 +70,13 @@ function applyHomeAvatarExpression(char, affection) {
         tier = resolved.tier;
     } else {
         src = getAvatarExpressionSrc(char, score);
-        fallback = AVATAR_EXPRESSIONS[char].default;
+        fallback = AVATAR_EXPRESSIONS[char] ? AVATAR_EXPRESSIONS[char].default : AVATAR_SVG_FALLBACK.shiro;
         var threshold = window.AffectionEngine ? AffectionEngine.SAD_THRESHOLD : 40;
         tier = score < threshold ? 'sad' : 'happy';
     }
+
+    if (!src) src = fallback || AVATAR_SVG_FALLBACK[char] || AVATAR_SVG_FALLBACK.shiro;
+    if (!fallback) fallback = AVATAR_SVG_FALLBACK[char] || AVATAR_SVG_FALLBACK.shiro;
 
     if (avatar.getAttribute('data-expression-src') === src) return;
 
@@ -156,10 +164,18 @@ const statusText = document.getElementById('status-text');
 // FULLSCREEN
 // ==========================================
 function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen();
-    } else if (document.exitFullscreen) {
-        document.documentElement.exitFullscreen();
+    var doc = document;
+    var el = doc.documentElement;
+    var isFs = doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement;
+
+    if (!isFs) {
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        else if (el.msRequestFullscreen) el.msRequestFullscreen();
+    } else {
+        if (doc.exitFullscreen) doc.exitFullscreen();
+        else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+        else if (doc.msExitFullscreen) doc.msExitFullscreen();
     }
 }
 
@@ -538,7 +554,13 @@ window.sendMessage = function() {
     fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: message, karakter: char })
+        body: JSON.stringify({
+            message: message,
+            karakter: char,
+            voice_commands: (window.VoiceCommands && VoiceCommands.isEnabled())
+                ? VoiceCommands.isEnabled()
+                : true
+        })
     })
     .then(function(response) { return response.json(); })
     .then(function(data) {
@@ -868,6 +890,10 @@ document.addEventListener('DOMContentLoaded', function() {
 // CAMERA (Modal)
 // ==========================================
 function openCamera() {
+    if (window.VisionCapture && VisionCapture.open) {
+        VisionCapture.open();
+        return;
+    }
     var modal = document.getElementById('cameraModal');
     if (modal) modal.classList.add('active');
     var title = document.getElementById('cameraTitle');
@@ -875,6 +901,10 @@ function openCamera() {
 }
 
 function closeCamera() {
+    if (window.VisionCapture && VisionCapture.close) {
+        VisionCapture.close();
+        return;
+    }
     var modal = document.getElementById('cameraModal');
     if (modal) modal.classList.remove('active');
     var preview = document.getElementById('imagePreview');
@@ -883,64 +913,7 @@ function closeCamera() {
     if (upload) upload.value = '';
 }
 
-var imageUpload = document.getElementById('imageUpload');
-if (imageUpload) {
-    imageUpload.addEventListener('change', function(event) {
-        var preview = document.getElementById('imagePreview');
-        if (this.files && this.files[0]) {
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                if (preview) preview.innerHTML = '<img src="' + e.target.result + '" alt="Preview">';
-            };
-            reader.readAsDataURL(this.files[0]);
-        }
-    });
-}
-
-async function uploadImage() {
-    var fileInput = document.getElementById('imageUpload');
-    if (!fileInput.files || !fileInput.files[0]) {
-        alert('Silakan pilih gambar terlebih dahulu.');
-        return;
-    }
-
-    var formData = new FormData();
-    formData.append('image', fileInput.files[0]);
-    formData.append('karakter', currentCharacter);
-
-    try {
-        var response = await fetch('/upload', {
-            method: 'POST',
-            body: formData
-        });
-        var data = await response.json();
-        closeCamera();
-        if (data.reply) {
-            openChat();
-            addMessage(data.reply, data.karakter || currentCharacter);
-            if (data.status) updateStatusBar(data.status);
-            var ttsResponse = await fetch('/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text: data.suara || data.reply,
-                    karakter: data.karakter || currentCharacter
-                })
-            });
-            if (ttsResponse.ok) {
-                var blob = await ttsResponse.blob();
-                var url = URL.createObjectURL(blob);
-                var audio = new Audio(url);
-                audio.play();
-                audio.onended = function() { URL.revokeObjectURL(url); };
-            }
-        }
-        alert('Foto berhasil dikirim!');
-    } catch (error) {
-        alert('Gagal mengirim foto.');
-        console.error('Upload error:', error);
-    }
-}
+/* Camera / vision — static/js/vision.js */
 
 // ==========================================
 // VOICE (Modal)
@@ -1659,10 +1632,12 @@ function startOneShotRecognition(langTryIndex) {
         if (waPtt) waPtt.classList.remove('wa-ptt-active');
 
         var activeChar = currentCharacter || 'shiro';
+        var vcOn = (window.VoiceCommands && VoiceCommands.isEnabled()) ? VoiceCommands.isEnabled() : true;
         if (socket && socket.connected) {
             socket.emit('voice_text', {
                 text: text,
-                karakter: activeChar
+                karakter: activeChar,
+                voice_commands: vcOn
             });
             console.log('VTuber PTT sent (' + activeChar + '):', text);
         } else {

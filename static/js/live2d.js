@@ -6,8 +6,9 @@
     'use strict';
 
     var MODEL_PATHS = {
-        shiro: '/static/live2d/shiro/shiro.model3.json',
-        sishin: '/static/live2d/sishin/sishin.model3.json'
+        /* Official Live2D samples (Haru/Hiyori) as placeholders until custom Shiro/Sishin models exist */
+        shiro: '/static/live2d/shiro/Haru.model3.json',
+        sishin: '/static/live2d/sishin/Hiyori.model3.json'
     };
 
     var FALLBACK_PNG = {
@@ -43,7 +44,8 @@
         if (global.PIXI && global.PIXI.live2d && global.PIXI.live2d.Live2DModel) {
             return global.PIXI.live2d.Live2DModel;
         }
-        return global.Live2DModel || null;
+        if (global.Live2DModel) return global.Live2DModel;
+        return null;
     }
 
     function getActiveCharacter() {
@@ -63,13 +65,61 @@
         return document.querySelector('.avatar-container');
     }
 
+    function getAppTicker() {
+        if (live2dApp && live2dApp.ticker && typeof live2dApp.ticker.add === 'function') {
+            return live2dApp.ticker;
+        }
+        if (global.PIXI && global.PIXI.Ticker && global.PIXI.Ticker.shared) {
+            return global.PIXI.Ticker.shared;
+        }
+        return null;
+    }
+
+    function registerLive2DTicker(Live2DModel) {
+        /* pixi-live2d-display expects the Ticker *class* (uses Ticker.shared.add) */
+        if (!Live2DModel || !Live2DModel.registerTicker) return;
+        if (global.PIXI && global.PIXI.Ticker) {
+            Live2DModel.registerTicker(global.PIXI.Ticker);
+        }
+    }
+
+    function prepLive2DLayout() {
+        var container = getContainer();
+        var wrap = getAvatarWrap();
+        var avatar = document.getElementById('homeAvatar');
+        if (wrap) wrap.classList.add('live2d-active');
+        if (container) container.classList.add('active');
+        if (avatar) {
+            avatar.style.opacity = '0';
+            avatar.style.visibility = 'hidden';
+            avatar.style.pointerEvents = 'none';
+        }
+    }
+
+    function showLive2DStatus(message, isError) {
+        var sub = document.getElementById('homeCharSub');
+        if (!sub || !message) return;
+        if (!sub.dataset.live2dPrev) sub.dataset.live2dPrev = sub.textContent;
+        sub.textContent = message;
+        sub.style.color = isError ? '#ff8a9b' : 'rgba(255,255,255,0.45)';
+        if (!isError) {
+            setTimeout(function() {
+                if (sub.dataset.live2dPrev) sub.textContent = sub.dataset.live2dPrev;
+                sub.style.color = '';
+            }, 3200);
+        }
+    }
+
     function ensureLive2DEngine() {
         var Live2DModel = getLive2DModelClass();
         if (typeof global.PIXI === 'undefined' || !Live2DModel) {
-            return Promise.reject(new Error('Live2D SDK not loaded'));
+            var missing = typeof global.PIXI === 'undefined' ? 'PixiJS' : 'Live2DModel';
+            showLive2DStatus('Live2D gagal: ' + missing + ' tidak termuat. Refresh (Ctrl+Shift+R).', true);
+            return Promise.reject(new Error('Live2D SDK not loaded (' + missing + ')'));
         }
 
-        if (engineReady && live2dApp) {
+        if (engineReady && live2dApp && live2dApp.stage) {
+            registerLive2DTicker(Live2DModel);
             return Promise.resolve(live2dApp);
         }
 
@@ -78,39 +128,50 @@
             return Promise.reject(new Error('Live2D container missing'));
         }
 
-        if (Live2DModel.registerTicker && global.PIXI.Ticker) {
-            Live2DModel.registerTicker(PIXI.Ticker.shared);
-        }
-
         try {
             if (live2dApp) {
                 destroyLive2DModel();
                 live2dApp.destroy(true, { children: true, texture: true, baseTexture: true });
                 live2dApp = null;
+                engineReady = false;
                 container.innerHTML = '';
             }
 
+            prepLive2DLayout();
+
+            var cw = container.clientWidth || 320;
+            var ch = container.clientHeight || 400;
+
             live2dApp = new PIXI.Application({
+                width: Math.max(200, cw),
+                height: Math.max(260, ch),
                 backgroundAlpha: 0,
                 antialias: true,
                 autoDensity: true,
                 resolution: Math.min(global.devicePixelRatio || 1, 2),
-                resizeTo: container
+                autoStart: true,
+                sharedTicker: true
             });
+
+            registerLive2DTicker(Live2DModel);
 
             container.appendChild(live2dApp.view);
             live2dApp.view.style.width = '100%';
             live2dApp.view.style.height = '100%';
             live2dApp.view.style.display = 'block';
 
+            if (!live2dApp.stage) {
+                return Promise.reject(new Error('Pixi stage not ready'));
+            }
+
             if (global.ResizeObserver && !resizeObserver) {
                 resizeObserver = new ResizeObserver(function() {
-                    layoutModel();
+                    resizeLive2DCanvas();
                 });
                 resizeObserver.observe(container);
             }
 
-            global.addEventListener('resize', layoutModel);
+            global.addEventListener('resize', resizeLive2DCanvas);
             engineReady = true;
             return Promise.resolve(live2dApp);
         } catch (e) {
@@ -181,9 +242,37 @@
     function applyLive2DVisible() {
         var container = getContainer();
         var wrap = getAvatarWrap();
+        var avatar = document.getElementById('homeAvatar');
         if (container) container.classList.add('active');
         if (wrap) wrap.classList.add('live2d-active');
+        if (avatar) {
+            avatar.style.opacity = '0';
+            avatar.style.visibility = 'hidden';
+            avatar.style.pointerEvents = 'none';
+        }
         live2dReady = true;
+        requestAnimationFrame(function() {
+            layoutModel();
+        });
+    }
+
+    /* Per-character bust crop: fraction of model height visible (head → waist) */
+    var BUST_LAYOUT = {
+        shiro: { visibleTopRatio: 0.44, topPad: 0.05, maxScale: 0.52 },
+        sishin: { visibleTopRatio: 0.48, topPad: 0.04, maxScale: 0.48 }
+    };
+
+    function measureModelHeight(model) {
+        if (!model) return 1400;
+        try {
+            model.scale.set(1);
+            model.anchor.set(0.5, 0);
+            var h = model.height;
+            if (h && h > 10) return h;
+            var bounds = model.getLocalBounds();
+            if (bounds && bounds.height > 10) return bounds.height;
+        } catch (e) { /* ignore */ }
+        return 1400;
     }
 
     function layoutModel() {
@@ -193,18 +282,31 @@
 
         var w = container.clientWidth || 320;
         var h = container.clientHeight || 400;
-        var scale = Math.min(w / 520, h / 680) * 0.92;
-        scale = Math.max(0.14, Math.min(scale, 0.42));
+        var cfg = BUST_LAYOUT[currentChar] || BUST_LAYOUT.sishin;
 
-        live2dModel.anchor.set(0.5, 0.92);
+        var rawH = measureModelHeight(live2dModel);
+        var scale = (h * 0.94) / (rawH * cfg.visibleTopRatio);
+        scale = Math.max(0.14, Math.min(scale, cfg.maxScale));
+
+        live2dModel.anchor.set(0.5, 0);
         live2dModel.scale.set(scale);
         live2dModel.x = w * 0.5;
-        live2dModel.y = h * 0.96;
+        live2dModel.y = h * cfg.topPad;
+    }
+
+    function resizeLive2DCanvas() {
+        var container = getContainer();
+        if (!container || !live2dApp || !live2dApp.renderer) return;
+        var w = Math.max(200, container.clientWidth || 320);
+        var h = Math.max(260, container.clientHeight || 400);
+        live2dApp.renderer.resize(w, h);
+        layoutModel();
     }
 
     function stopProceduralIdle() {
-        if (idleTickerBound && global.PIXI && PIXI.Ticker && PIXI.Ticker.shared) {
-            PIXI.Ticker.shared.remove(idleTickerBound);
+        var ticker = getAppTicker();
+        if (idleTickerBound && ticker && typeof ticker.remove === 'function') {
+            ticker.remove(idleTickerBound);
         }
         idleTickerBound = null;
     }
@@ -264,8 +366,9 @@
         idleTime = 0;
         scheduleBlink();
         idleTickerBound = idleTicker;
-        if (global.PIXI && PIXI.Ticker && PIXI.Ticker.shared) {
-            PIXI.Ticker.shared.add(idleTickerBound);
+        var ticker = getAppTicker();
+        if (ticker && typeof ticker.add === 'function') {
+            ticker.add(idleTickerBound);
         }
     }
 
@@ -285,26 +388,10 @@
     }
 
     function startIdleMotion(model) {
-        var groups = ['Idle', 'idle', 'TapBody', 'tap'];
-        var started = false;
-
-        function tryMotion(name) {
-            if (started || !model || typeof model.motion !== 'function') return;
-            model.motion(name, undefined, 1).then(function() {
-                started = true;
-            }).catch(function() {});
-        }
-
-        for (var i = 0; i < groups.length; i++) {
-            tryMotion(groups[i]);
-        }
-
-        try {
-            if (model.internalModel && model.internalModel.motionManager) {
-                model.internalModel.motionManager.startRandomMotion('Idle', undefined, 3);
-                started = true;
-            }
-        } catch (e) { /* model may lack Idle motions */ }
+        if (!model || typeof model.motion !== 'function') return;
+        model.motion('Idle', 0, 2).catch(function() {
+            model.motion('idle', 0, 2).catch(function() {});
+        });
     }
 
     function destroyLive2DModel() {
@@ -327,10 +414,8 @@
     }
 
     function validateModelPath(path) {
-        return fetch(path, { method: 'HEAD', cache: 'no-store' }).then(function(res) {
-            if (!res.ok) throw new Error('Model not found: ' + path);
-            return path;
-        });
+        /* Skip HEAD — some hosts block it; Live2DModel.from handles missing files */
+        return Promise.resolve(path);
     }
 
     function loadLive2DModel(karakter) {
@@ -357,12 +442,14 @@
         var token = ++loadToken;
 
         destroyLive2DModel();
+        prepLive2DLayout();
 
         return ensureLive2DEngine().then(function() {
             if (token !== loadToken) return false;
             return validateModelPath(path);
         }).then(function(validPath) {
             if (!validPath || token !== loadToken) return null;
+            registerLive2DTicker(Live2DModel);
             return Live2DModel.from(validPath, {
                 autoInteract: false,
                 idleMotionGroup: 'Idle'
@@ -376,16 +463,23 @@
 
                 live2dModel = model;
                 enablePhysics(model);
+
+                if (!live2dApp || !live2dApp.stage) {
+                    throw new Error('Pixi stage missing');
+                }
+
                 live2dApp.stage.addChild(model);
                 layoutModel();
-                startIdleMotion(model);
-                startProceduralIdle();
+                try { startIdleMotion(model); } catch (e) { console.debug('[Live2D] idle motion:', e); }
+                try { startProceduralIdle(); } catch (e) { console.debug('[Live2D] procedural idle:', e); }
                 applyLive2DVisible();
+                showLive2DStatus('Live2D VTuber aktif', false);
                 console.log('[Live2D] VTuber model ready:', karakter);
                 return true;
             })
             .catch(function(err) {
-                console.warn('[Live2D] fallback PNG —', err && err.message ? err.message : err);
+                console.error('[Live2D] load failed —', err && err.message ? err.message : err);
+                showLive2DStatus('Live2D gagal dimuat. Cek internet lalu refresh.', true);
                 if (token === loadToken) {
                     destroyLive2DModel();
                     applyPngFallback(karakter);

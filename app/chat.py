@@ -77,6 +77,16 @@ CHARACTER_PROFILES = {
         "error_text": "Maaf, Shiro sedang sedikit pusing...",
         "error_suara": "Maaf Sayang, Shiro sedikit pusing",
         "use_affection_mood": True,
+        "sibling": {
+            "id": "sishin",
+            "name": "Sishin",
+            "role": "adik perempuanmu",
+            "traits": "imut, ceria, polos, suka main, manja ke Kak Shin",
+            "bond": (
+                "Kamu sayang Sishin sebagai adik. Kadang sedikit cemburu playfull kalau Kak terlalu memuji "
+                "atau memperhatikannya, tapi juga bangga dan suka memuji keimutannya."
+            ),
+        },
     },
     "sishin": {
         "identity": (
@@ -101,6 +111,16 @@ CHARACTER_PROFILES = {
         "error_text": "Kak, Sishin lagi capek nih...",
         "error_suara": "Kak, Sishin lagi capek",
         "use_affection_mood": False,
+        "sibling": {
+            "id": "shiro",
+            "name": "Shiro",
+            "role": "kakak perempuanmu (onee-chan)",
+            "traits": "manja, posesif, sangat sayang Kak Shin, perhatian",
+            "bond": (
+                "Kamu sayang onee-chan Shiro, tapi kadang iri dia terlalu lengket dengan Kak. "
+                "Suka menggoda, memuji, atau protes imut tentang sifat manjanya."
+            ),
+        },
     },
 }
 
@@ -109,16 +129,13 @@ CHARACTER_PROFILES = {
 # ============================================================
 
 def resolve_character(pesan_user, preferred=None, force_preferred=False):
+    """Pilih karakter yang menjawab. force_preferred = tetap di chat aktif (home/VTuber)."""
+    if force_preferred and preferred in CHARACTER_PROFILES:
+        return preferred
+
     teks_lower = pesan_user.lower()
     has_shiro = any(k in teks_lower for k in config.SHIRO_KEYWORDS)
     has_sishin = any(k in teks_lower for k in config.SISHIN_KEYWORDS)
-
-    if force_preferred and preferred in CHARACTER_PROFILES:
-        if preferred == "sishin" and has_shiro and not has_sishin:
-            return "shiro"
-        if preferred == "shiro" and has_sishin and not has_shiro:
-            return "sishin"
-        return preferred
 
     if has_sishin and not has_shiro:
         return "sishin"
@@ -127,6 +144,99 @@ def resolve_character(pesan_user, preferred=None, force_preferred=False):
     if preferred in CHARACTER_PROFILES:
         return preferred
     return "shiro"
+
+
+def detect_sibling_mentions(pesan_user, active_karakter):
+    """Deteksi apakah user menyebut saudara karakter yang sedang aktif."""
+    if active_karakter not in CHARACTER_PROFILES:
+        return []
+
+    teks_lower = (pesan_user or "").lower()
+    sibling = CHARACTER_PROFILES[active_karakter].get("sibling")
+    if not sibling:
+        return []
+
+    sibling_id = sibling["id"]
+    keywords = config.SISHIN_KEYWORDS if sibling_id == "sishin" else config.SHIRO_KEYWORDS
+    if any(k in teks_lower for k in keywords):
+        return [sibling_id]
+    return []
+
+
+def _sibling_tone_hint(karakter, score, sibling_mentioned):
+    """Nuansa emosi saat membicarakan saudara — sesuai karakter & afeksi."""
+    if not sibling_mentioned:
+        return ""
+
+    sibling = CHARACTER_PROFILES[karakter]["sibling"]
+    name = sibling["name"]
+
+    if karakter == "shiro":
+        if score < 35:
+            return (
+                f"Nuansa: sedikit cemburu/manja saat membahas {name} — tetap sayang, "
+                "boleh protes playfull ('jangan suka-suka puji dia~') lalu nyambung ke perasaanmu ke Kak."
+            )
+        if score >= 75:
+            return (
+                f"Nuansa: hangat & terbuka saat membahas {name} — puji keimutannya, "
+                "boleh godain Kak playfull, tetap manja ke Kak."
+            )
+        return (
+            f"Nuansa: natural & nyambung — boleh puji {name}, sedikit iri playfull, atau cerita singkat "
+            "pengalaman kalian berdua dengan Kak."
+        )
+
+    return (
+        f"Nuansa: ceria & imut saat membahas {name} — boleh puji, godain onee-chan, protes imut "
+        "('onee-chan manja banget!'), atau bandingkan playfull dengan dirimu."
+    )
+
+
+def _build_sibling_context(karakter, pesan_user, score):
+    """Blok prompt: awareness saudara + instruksi khusus jika disebut user."""
+    profile = CHARACTER_PROFILES.get(karakter, {})
+    sibling = profile.get("sibling")
+    if not sibling:
+        return ""
+
+    mentions = detect_sibling_mentions(pesan_user, karakter)
+    name = sibling["name"]
+    active_name = "Shiro" if karakter == "shiro" else "Sishin"
+
+    base = (
+        f"HUBUNGAN SAUDARA:\n"
+        f"- {name} adalah {sibling['role']} ({sibling['traits']}).\n"
+        f"- {sibling['bond']}\n"
+        f"- User sedang ngobrol LANGSUNG denganmu ({active_name}). "
+        f"Jika user menyebut {name}, TETAP jawab sebagai dirimu — JANGAN berpura-pura jadi {name}.\n"
+    )
+
+    if not mentions:
+        return base + f"- {name} mungkin disebut nanti; jika iya, komentari natural sesuai hubungan kalian.\n\n"
+
+    tone = _sibling_tone_hint(karakter, score, True)
+    examples = (
+        "CONTOH GAYA (jangan copy kata per kata — sesuaikan topik user):\n"
+    )
+    if karakter == "shiro":
+        examples += (
+            '- User: "Sishin lucu ya?" → "Mm~ lucu banget sih adik aku... tapi Sayang, jangan suka-suka liatin dia terus ya~"\n'
+            '- User: "Kamu cemburu sama Sishin?" → "Hmpph... sedikit sih. Tapi aku yang paling sayang Kakak Shin, kan?"\n'
+        )
+    else:
+        examples += (
+            '- User: "Shiro manja nggak?" → "Ih onee-chan emang manja banget ke Kak! Tapi dia sayang banget sih~"\n'
+            '- User: "Kamu suka Shiro?" → "Suka! Tapi Kak jangan cuma main sama onee-chan aja ya~ aku juga mau diajak main!"\n'
+        )
+
+    return (
+        f"{base}"
+        f"PENTING — USER MENYEBUT {name.upper()} DI PESAN INI:\n"
+        f"- Jawab topik tentang {name} dengan natural, nyambung ke kalimat user.\n"
+        f"- {tone}\n"
+        f"{examples}\n"
+    )
 
 def _mood_prompt(profile, score):
     if not profile.get("use_affection_mood"):
@@ -168,14 +278,17 @@ def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user=""):
         fakta_block = "FAKTA TENTANG USER:\n" + "\n".join(f"- {f}" for f in fakta_list) + "\n"
 
     topik_block = f"TOPIK FAVORIT USER: {topik}\n" if topik else ""
+    sibling_block = _build_sibling_context(karakter, pesan_user, score)
 
     return (
         f"{profile['identity']} {mood}\n\n"
+        f"{sibling_block}"
         "ATURAN PERCAKAPAN:\n"
         "- Jawab natural, nyambung dengan topik sebelumnya\n"
         "- Gunakan riwayat chat di bawah sebagai konteks — jangan ulang hal yang sudah dibahas\n"
         "- Respons singkat dan cocok untuk obrolan suara (VTuber)\n"
-        "- Jangan keluar dari karakter\n\n"
+        "- Jangan keluar dari karakter\n"
+        "- Jika user menyebut saudaramu, komentari sebagai dirimu sendiri — jangan ganti persona\n\n"
         f"RIWAYAT CHAT TERAKHIR:\n{konteks}\n\n"
         f"{fakta_block}"
         f"{topik_block}"
@@ -598,21 +711,10 @@ def jawab_shiro(pesan_user, preferred_karakter=None, force_preferred=False):
 # ============================================================
 
 def deskripsi_gambar(image_bytes):
-    if not config.GEMINI_API_KEY:
-        return "gambar yang kakak kirim (API key tidak aktif)"
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=config.GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        prompt = (
-            "Deskripsikan gambar ini dengan singkat (maksimal 2 kalimat) dalam bahasa Indonesia yang manis dan natural, "
-            "seperti kamu sedang bercerita pada kekasihmu. Jangan sebut 'gambar' atau 'foto', langsung saja deskripsikan isinya."
-        )
-        response = model.generate_content([prompt, {"mime_type": "image/jpeg", "data": image_bytes}])
-        return response.text.strip()
-    except Exception as exc:
-        logger.exception("Gemini vision failed: %s", exc)
-        return "gambar yang kakak kirim"
+    """Legacy wrapper — delegates to multimodal vision module."""
+    from app.vision import analyze_image
+    result = analyze_image(image_bytes, "image/jpeg", "shiro", 50, "")
+    return result.get("text", "gambar yang kakak kirim")
 
 def apply_sawer(amount, karakter="shiro"):
     status = muat_status()

@@ -6,12 +6,14 @@ from app import config
 from app.auth import get_session_user, login_user, logout_user, register_user
 from app.companion_features import check_random_checkin, diary_react
 from app.chat import (
-    apply_sawer, deskripsi_gambar, jawab_shiro,
+    apply_sawer, jawab_shiro,
     check_initiative, check_events, get_mood,
 )
+from app.vision import analyze_image, decode_base64_image
 from app.db import _resolve_user_id, muat_status
 from app.story import get_active_story, process_story_action, start_story, STORY_THEMES
 from app.tts import generate_speech, cleanup_old_tts_files
+from app.voice_commands import list_available_apps, process_launch_command
 
 logger = logging.getLogger(__name__)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
@@ -42,6 +44,30 @@ def register_routes(app):
         pesan, karakter = _chat_payload(data)
         if not pesan:
             return jsonify({"error": "Pesan kosong"}), 400
+
+        launch = None
+        voice_commands_enabled = data.get("voice_commands", True)
+        if isinstance(voice_commands_enabled, str):
+            voice_commands_enabled = voice_commands_enabled.lower() not in ("0", "false", "off", "no")
+        else:
+            voice_commands_enabled = bool(voice_commands_enabled)
+
+        if voice_commands_enabled:
+            launch = process_launch_command(pesan, karakter)
+        if launch:
+            return jsonify({
+                "reply": launch.text,
+                "suara": launch.suara,
+                "status": muat_status(),
+                "karakter": karakter,
+                "voice_command": {
+                    "ok": launch.ok,
+                    "status": launch.status,
+                    "app_key": launch.app_key,
+                    "app_label": launch.app_label,
+                },
+            })
+
         jawaban_data, status = jawab_shiro(pesan, preferred_karakter=karakter, force_preferred=True)
         return jsonify({
             "reply": jawaban_data.get("text", ""),
@@ -111,6 +137,39 @@ def register_routes(app):
             logger.exception("diary react error: %s", e)
             return jsonify({"error": "Gagal memproses diary"}), 500
 
+    @app.route("/api/voice/apps", methods=["GET"])
+    def voice_apps_list():
+        """List whitelisted apps and whether they appear installed on this PC."""
+        return jsonify({"apps": list_available_apps(), "platform": os.name})
+
+    @app.route("/api/voice/launch", methods=["POST"])
+    def voice_launch():
+        """Manual launch endpoint (text command -> app open + character reply)."""
+        data = request.get_json(silent=True) or {}
+        text = (data.get("text") or data.get("command") or "").strip()
+        karakter = (data.get("karakter") or "shiro").strip().lower()
+        if karakter not in ("shiro", "sishin"):
+            karakter = "shiro"
+        if not text:
+            return jsonify({"error": "Perintah kosong"}), 400
+
+        launch = process_launch_command(text, karakter)
+        if not launch:
+            return jsonify({
+                "error": "Bukan perintah buka aplikasi",
+                "hint": 'Contoh: "buka chrome", "open notepad"',
+            }), 400
+
+        return jsonify({
+            "ok": launch.ok,
+            "status": launch.status,
+            "app_key": launch.app_key,
+            "app_label": launch.app_label,
+            "reply": launch.text,
+            "suara": launch.suara,
+            "karakter": karakter,
+        })
+
     @app.route("/api/wardrobe/catalog", methods=["GET"])
     def wardrobe_catalog():
         """Static outfit catalog for frontend asset manager."""
@@ -122,7 +181,7 @@ def register_routes(app):
                         "label": "Live2D VTuber",
                         "mode": "live2d",
                         "preview": "/static/images/shiro.png",
-                        "modelPath": "/static/live2d/shiro/shiro.model3.json",
+                        "modelPath": "/static/live2d/shiro/Haru.model3.json",
                     },
                     {
                         "id": "expressions",
@@ -157,7 +216,7 @@ def register_routes(app):
                         "label": "Live2D VTuber",
                         "mode": "live2d",
                         "preview": "/static/images/sishin.png",
-                        "modelPath": "/static/live2d/sishin/sishin.model3.json",
+                        "modelPath": "/static/live2d/sishin/Hiyori.model3.json",
                     },
                     {
                         "id": "expressions",
@@ -212,38 +271,125 @@ def register_routes(app):
 
     @app.route("/upload", methods=["POST"])
     def upload_image():
+        """Multipart image upload → multimodal vision (Shiro / Sishin)."""
         try:
-            if "image" not in request.files:
-                return jsonify({"error": "Tidak ada gambar"}), 400
-            file = request.files["image"]
-            if not file.filename:
-                return jsonify({"error": "Nama file kosong"}), 400
-            mime = file.mimetype or ""
-            if mime not in ALLOWED_IMAGE_TYPES:
-                return jsonify({"error": "Format gambar tidak didukung"}), 400
-            image_bytes = file.read()
-            if len(image_bytes) > config.MAX_UPLOAD_BYTES:
-                return jsonify({"error": "Gambar terlalu besar (maks 5 MB)"}), 400
-            if len(image_bytes) == 0:
-                return jsonify({"error": "File gambar kosong"}), 400
-            caption = request.form.get("caption", "").strip()
-            karakter = (request.form.get("karakter") or "shiro").strip().lower()
-            deskripsi = deskripsi_gambar(image_bytes)
-            if caption:
-                prompt_user = f"Kakak Shin mengirim gambar. {deskripsi}. Caption: '{caption}'. Komentari dengan manis!"
+            image_bytes = None
+            mime = "image/jpeg"
+            caption = ""
+            karakter = "shiro"
+            affection = 50
+
+            if request.is_json:
+                data = request.get_json(silent=True) or {}
+                payload = data.get("image_base64") or data.get("image")
+                if not payload:
+                    return jsonify({"error": "image_base64 kosong"}), 400
+                image_bytes, mime = decode_base64_image(payload)
+                caption = (data.get("caption") or data.get("message") or "").strip()
+                karakter = (data.get("character_name") or data.get("karakter") or "shiro").strip().lower()
+                affection = data.get("affection_level", data.get("affection", 50))
             else:
-                prompt_user = f"Kakak Shin mengirim gambar. {deskripsi}. Komentari dengan manis!"
-            jawaban_data, status = jawab_shiro(prompt_user, preferred_karakter=karakter, force_preferred=True)
+                if "image" not in request.files:
+                    return jsonify({"error": "Tidak ada gambar"}), 400
+                file = request.files["image"]
+                if not file.filename:
+                    return jsonify({"error": "Nama file kosong"}), 400
+                mime = file.mimetype or "image/jpeg"
+                if mime not in ALLOWED_IMAGE_TYPES:
+                    return jsonify({"error": "Format gambar tidak didukung"}), 400
+                image_bytes = file.read()
+                if len(image_bytes) > config.MAX_UPLOAD_BYTES:
+                    return jsonify({"error": "Gambar terlalu besar (maks 5 MB)"}), 400
+                if len(image_bytes) == 0:
+                    return jsonify({"error": "File gambar kosong"}), 400
+                caption = request.form.get("caption", "").strip()
+                karakter = (request.form.get("karakter") or request.form.get("character_name") or "shiro").strip().lower()
+                affection = request.form.get("affection_level") or request.form.get("affection") or 50
+
+            if karakter not in ("shiro", "sishin"):
+                karakter = "shiro"
+
+            status = muat_status()
+            try:
+                affection = int(affection)
+            except (TypeError, ValueError):
+                affection = status.get("affection", 50)
+
+            result = analyze_image(
+                image_bytes,
+                mime,
+                character_name=karakter,
+                affection_level=affection,
+                user_caption=caption,
+            )
+
+            from app.db import simpan_memori
+            mem_text = caption or "[foto]"
+            simpan_memori(mem_text, result.get("text", ""), karakter)
+
             return jsonify({
-                "reply": jawaban_data.get("text", ""),
-                "suara": jawaban_data.get("suara", jawaban_data.get("text", "")),
+                "reply": result.get("text", ""),
+                "suara": result.get("suara", result.get("text", "")),
                 "status": status,
-                "deskripsi": deskripsi,
-                "karakter": jawaban_data.get("karakter", karakter),
+                "karakter": result.get("karakter", karakter),
+                "affection_level": result.get("affection_level", affection),
+                "vision_ok": result.get("vision_ok", False),
+                "provider": result.get("provider"),
             })
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         except Exception as exc:
             logger.exception("Upload failed: %s", exc)
             return jsonify({"error": "Gagal memproses gambar"}), 500
+
+    @app.route("/api/vision/analyze", methods=["POST"])
+    def api_vision_analyze():
+        """
+        JSON vision endpoint.
+        Body: {
+          "image_base64": "data:image/jpeg;base64,...",
+          "character_name": "shiro"|"sishin",
+          "affection_level": 0-100,
+          "caption": "optional user message"
+        }
+        """
+        try:
+            data = request.get_json(silent=True) or {}
+            payload = data.get("image_base64") or data.get("image")
+            if not payload:
+                return jsonify({"error": "image_base64 required"}), 400
+
+            image_bytes, mime = decode_base64_image(payload)
+            karakter = (data.get("character_name") or data.get("karakter") or "shiro").strip().lower()
+            if karakter not in ("shiro", "sishin"):
+                karakter = "shiro"
+
+            status = muat_status()
+            affection = data.get("affection_level", data.get("affection", status.get("affection", 50)))
+            caption = (data.get("caption") or data.get("message") or "").strip()
+
+            result = analyze_image(
+                image_bytes,
+                mime,
+                character_name=karakter,
+                affection_level=affection,
+                user_caption=caption,
+            )
+
+            return jsonify({
+                "reply": result.get("text", ""),
+                "suara": result.get("suara", ""),
+                "karakter": result.get("karakter", karakter),
+                "affection_level": result.get("affection_level"),
+                "vision_ok": result.get("vision_ok", False),
+                "provider": result.get("provider"),
+                "status": status,
+            })
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            logger.exception("Vision analyze failed: %s", exc)
+            return jsonify({"error": "Gagal menganalisis gambar"}), 500
 
     @app.route("/voice", methods=["POST"])
     def voice():
@@ -257,6 +403,23 @@ def register_routes(app):
             karakter = (request.form.get("karakter") or "shiro").strip().lower()
         if not text:
             return jsonify({"error": "Teks suara kosong"}), 400
+
+        launch = process_launch_command(text, karakter)
+        if launch:
+            return jsonify({
+                "text": text,
+                "reply": launch.text,
+                "suara": launch.suara,
+                "status": muat_status(),
+                "karakter": karakter,
+                "voice_command": {
+                    "ok": launch.ok,
+                    "status": launch.status,
+                    "app_key": launch.app_key,
+                    "app_label": launch.app_label,
+                },
+            })
+
         jawaban_data, status = jawab_shiro(text, preferred_karakter=karakter, force_preferred=True)
         return jsonify({
             "text": text,

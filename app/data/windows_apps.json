@@ -1,0 +1,143 @@
+{
+  "chrome": {
+    "label": "Google Chrome",
+    "exe": "chrome.exe",
+    "paths": [
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
+    ],
+    "aliases": ["google chrome", "google", "browser", "brave browser"]
+  },
+  "edge": {
+    "label": "Microsoft Edge",
+    "exe": "msedge.exe",
+    "paths": [
+      "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
+    ],
+    "aliases": ["microsoft edge", "browser edge"]
+  },
+  "firefox": {
+    "label": "Mozilla Firefox",
+    "exe": "firefox.exe",
+    "paths": [
+      "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
+      "C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe"
+    ],
+    "aliases": ["mozilla firefox"]
+  },
+  "notepad": {
+    "label": "Notepad",
+    "exe": "notepad.exe",
+    "paths": [],
+    "aliases": ["catatan", "notes", "text editor"]
+  },
+  "calculator": {
+    "label": "Calculator",
+    "exe": "calc.exe",
+    "paths": [],
+    "aliases": ["kalkulator", "calc"]
+  },
+  "spotify": {
+    "label": "Spotify",
+    "exe": "Spotify.exe",
+    "paths": [
+      "%APPDATA%\\Spotify\\Spotify.exe",
+      "C:\\Users\\%USERNAME%\\AppData\\Roaming\\Spotify\\Spotify.exe"
+    ],
+    "aliases": ["spotify music", "musik"]
+  },
+  "discord": {
+    "label": "Discord",
+    "exe": "Discord.exe",
+    "paths": [
+      "%LOCALAPPDATA%\\Discord\\Update.exe",
+      "C:\\Users\\%USERNAME%\\AppData\\Local\\Discord\\Update.exe"
+    ],
+    "launch_args": ["--processStart", "Discord.exe"],
+    "aliases": []
+  },
+  "steam": {
+    "label": "Steam",
+    "exe": "steam.exe",
+    "paths": [
+      "C:\\Program Files (x86)\\Steam\\steam.exe",
+      "C:\\Program Files\\Steam\\steam.exe"
+    ],
+    "aliases": []
+  },
+  "vscode": {
+    "label": "Visual Studio Code",
+    "exe": "Code.exe",
+    "paths": [
+      "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe"
+    ],
+    "aliases": ["visual studio code", "vs code", "code editor"]
+  },
+  "explorer": {
+    "label": "File Explorer",
+    "exe": "explorer.exe",
+    "paths": [],
+    "aliases": ["file explorer", "files", "folder", "explorer", "penjelajah file"]
+  },
+  "paint": {
+    "label": "Paint",
+    "exe": "mspaint.exe",
+    "paths": [],
+    "aliases": ["mspaint", "microsoft paint"]
+  },
+  "word": {
+    "label": "Microsoft Word",
+    "exe": "WINWORD.EXE",
+    "paths": [
+      "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+      "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\WINWORD.EXE"
+    ],
+    "aliases": ["microsoft word", "ms word"]
+  },
+  "excel": {
+    "label": "Microsoft Excel",
+    "exe": "EXCEL.EXE",
+    "paths": [
+      "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+      "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\EXCEL.EXE"
+    ],
+    "aliases": ["microsoft excel", "ms excel"]
+  },
+  "task manager": {
+    "label": "Task Manager",
+    "exe": "Taskmgr.exe",
+    "paths": [],
+    "aliases": ["taskmanager", "taskmgr", "pengelola tugas"]
+  },
+  "settings": {
+    "label": "Windows Settings",
+    "exe": "ms-settings:",
+    "paths": [],
+    "use_startfile": true,
+    "aliases": ["windows settings", "pengaturan", "setting"]
+  },
+  "photos": {
+    "label": "Photos",
+    "exe": "Microsoft.Photos.exe",
+    "paths": [],
+    "aliases": ["foto", "microsoft photos"]
+  },
+  "vlc": {
+    "label": "VLC",
+    "exe": "vlc.exe",
+    "paths": [
+      "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",
+      "C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe"
+    ],
+    "aliases": ["vlc media player"]
+  },
+  "obs": {
+    "label": "OBS Studio",
+    "exe": "obs64.exe",
+    "paths": [
+      "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe"
+    ],
+    "aliases": ["obs studio"]
+  }
+}

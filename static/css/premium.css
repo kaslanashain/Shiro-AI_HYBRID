@@ -486,18 +486,20 @@
     margin-bottom: 0;
 }
 
-/* Live2D container — VTuber canvas layer */
+/* Live2D container — VTuber canvas layer (keep in layout; hide via opacity) */
 .live2d-container {
     position: absolute;
     inset: 0;
-    z-index: 2;
+    z-index: 3;
     pointer-events: none;
-    display: none;
+    opacity: 0;
+    visibility: hidden;
     overflow: hidden;
 }
 
 .live2d-container.active {
-    display: block;
+    opacity: 1;
+    visibility: visible;
 }
 
 .live2d-container canvas {
@@ -505,6 +507,20 @@
     height: 100% !important;
     display: block;
     image-rendering: auto;
+}
+
+/* Expand home avatar area when Live2D is active */
+.avatar-container.live2d-active {
+    width: min(88vw, 300px);
+    height: min(72vw, 380px);
+    margin-bottom: 10px;
+    transition: width 0.35s ease, height 0.35s ease;
+}
+
+.avatar-container.live2d-active .avatar-glow,
+.avatar-container.live2d-active .avatar-ring {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .avatar-container.live2d-active #homeAvatar {

@@ -198,6 +198,11 @@
                 <i class="fas fa-microphone-alt"></i>
                 <span>VTuber</span>
             </button>
+            <button type="button" class="action-btn btn-voice-cmd active" id="btnVoiceCommands"
+                onclick="toggleVoiceCommands()" title="Voice Command — buka aplikasi via suara (Shiro & Sishin)">
+                <i class="fas fa-terminal"></i>
+                <span>Voice ON</span>
+            </button>
         </div>
 
         <div id="themeMenu" class="theme-menu">
@@ -242,15 +247,34 @@
     </div>
 
     <div id="cameraModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content vision-modal">
             <div class="modal-header">
                 <span id="cameraTitle">Kirim Foto</span>
-                <button onclick="closeCamera()"><i class="fas fa-times"></i></button>
+                <button type="button" onclick="closeCamera()"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
-                <input type="file" id="imageUpload" accept="image/*">
-                <div id="imagePreview"></div>
-                <button class="upload-btn" onclick="uploadImage()">Kirim ke Shiro</button>
+                <div class="vision-tabs">
+                    <button type="button" id="visionTabUpload" class="vision-tab active">
+                        <i class="fas fa-image"></i> Upload
+                    </button>
+                    <button type="button" id="visionTabWebcam" class="vision-tab">
+                        <i class="fas fa-camera"></i> Webcam
+                    </button>
+                </div>
+                <div id="visionUploadPanel">
+                    <input type="file" id="imageUpload" accept="image/*" capture="environment">
+                </div>
+                <div id="visionWebcamPanel" style="display:none;">
+                    <video id="webcamVideo" class="webcam-video" playsinline autoplay muted></video>
+                    <canvas id="webcamCanvas" style="display:none;"></canvas>
+                    <button type="button" id="webcamCaptureBtn" class="record-btn">
+                        <i class="fas fa-camera"></i> Ambil Foto
+                    </button>
+                </div>
+                <div id="imagePreview" class="vision-preview"></div>
+                <input type="text" id="visionCaption" class="vision-caption" maxlength="200"
+                    placeholder="Pesan opsional (contoh: gimana rambutku?)">
+                <button type="button" id="visionSendBtn" class="upload-btn">Kirim ke Shiro</button>
             </div>
         </div>
     </div>
@@ -523,12 +547,15 @@
 <script src="{{ url_for('static', filename='js/wardrobe.js') }}"></script>
 <script src="{{ url_for('static', filename='js/idle-soundboard.js') }}"></script>
 <script src="{{ url_for('static', filename='js/schedule.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vision.js') }}"></script>
+<script src="{{ url_for('static', filename='js/voice-commands.js') }}"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <script src="{{ url_for('static', filename='js/story.js') }}"></script>
 <script src="{{ url_for('static', filename='js/premium.js') }}"></script>
 <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.5.0/dist/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+<script>window.PIXI = window.PIXI || PIXI;</script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
 <script src="{{ url_for('static', filename='js/live2d.js') }}"></script>
 
 <!-- ===== TAMBAHAN SCRIPT: KURSOR & TANGGAL (cuaca di-handle main.js) ===== -->
@@ -630,9 +657,17 @@
     });
 
     document.addEventListener('DOMContentLoaded', function() {
-        if (typeof initLive2D === 'function') {
-            setTimeout(function() { initLive2D(); }, 600);
+        function bootLive2D() {
+            var run = function() {
+                if (typeof initLive2D === 'function') initLive2D();
+            };
+            if (typeof AssetManager !== 'undefined' && AssetManager.fetchCatalog) {
+                AssetManager.fetchCatalog().finally(run);
+            } else {
+                run();
+            }
         }
+        setTimeout(bootLive2D, 400);
     });
 })();
 </script>

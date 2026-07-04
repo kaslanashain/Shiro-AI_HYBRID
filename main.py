@@ -12,6 +12,7 @@ from app import create_app
 from app.chat import jawab_shiro, jawab_shiro_stream
 from app.tts import cleanup_old_tts_files, start_cleanup_scheduler, generate_speech
 from app.voice import transcribe_audio_with_retry, get_whisper_model
+from app.voice_commands import process_launch_command
 from app import config
 
 # ===== KONFIGURASI LOGGING =====
@@ -66,7 +67,126 @@ def handle_disconnect():
         logger.exception("Error in disconnect handler: %s", e)
 
 
-def _process_voice_reply(text: str, client_sid: str, preferred_karakter: str = "shiro"):
+def _emit_character_response(
+    client_sid: str,
+    reply: str,
+    suara_text: str,
+    karakter: str,
+    *,
+    stream_msg_id: str | None = None,
+    extra: dict | None = None,
+):
+    """Send text + TTS audio to client (voice / app-launcher replies)."""
+    extra = extra or {}
+    if stream_msg_id:
+        socketio.emit(
+            "stream_end",
+            {"text": reply, "karakter": karakter, "msg_id": stream_msg_id, **extra},
+            room=client_sid,
+        )
+    else:
+        socketio.emit("stream_start", {"karakter": karakter}, room=client_sid)
+        socketio.emit(
+            "stream_end",
+            {"text": reply, "karakter": karakter, **extra},
+            room=client_sid,
+        )
+
+    try:
+        audio_file = generate_speech(suara_text, karakter)
+    except Exception as e:
+        logger.exception("TTS error: %s", e)
+        socketio.emit(
+            "response",
+            {"text": reply, "audio": None, "karakter": karakter, **extra},
+            room=client_sid,
+        )
+        return
+
+    if not audio_file or not os.path.exists(audio_file):
+        socketio.emit(
+            "response",
+            {"text": reply, "audio": None, "karakter": karakter, **extra},
+            room=client_sid,
+        )
+        return
+
+    try:
+        with open(audio_file, "rb") as f:
+            audio_data = f.read()
+        audio_base64 = base64.b64encode(audio_data).decode("utf-8")
+        socketio.emit(
+            "response",
+            {"text": reply, "audio": audio_base64, "karakter": karakter, **extra},
+            room=client_sid,
+        )
+    except Exception as e:
+        logger.exception("Error reading TTS file: %s", e)
+        socketio.emit(
+            "response",
+            {"text": reply, "audio": None, "karakter": karakter, **extra},
+            room=client_sid,
+        )
+    finally:
+        try:
+            if audio_file and os.path.exists(audio_file):
+                os.unlink(audio_file)
+        except Exception as e:
+            logger.warning("Cleanup TTS file error: %s", e)
+
+
+def _try_voice_app_launch(text: str, client_sid: str, karakter: str, enabled: bool = True) -> bool:
+    """If utterance is an open-app command, launch it and reply in character. Returns True if handled."""
+    if not enabled:
+        return False
+
+    launch = process_launch_command(text, karakter)
+    if not launch:
+        return False
+
+    logger.info(
+        "Voice command (%s): %s -> %s (%s)",
+        karakter,
+        text,
+        launch.app_label or launch.app_key,
+        launch.status,
+    )
+    socketio.emit("transcript", {"text": text, "karakter": karakter}, room=client_sid)
+    socketio.emit("stream_start", {"karakter": karakter}, room=client_sid)
+    socketio.emit(
+        "voice_command",
+        {
+            "status": launch.status,
+            "app_key": launch.app_key,
+            "app_label": launch.app_label,
+            "ok": launch.ok,
+            "karakter": karakter,
+        },
+        room=client_sid,
+    )
+    _emit_character_response(
+        client_sid,
+        launch.text,
+        launch.suara,
+        karakter,
+        extra={
+            "voice_command": {
+                "status": launch.status,
+                "app_key": launch.app_key,
+                "app_label": launch.app_label,
+                "ok": launch.ok,
+            }
+        },
+    )
+    return True
+
+
+def _process_voice_reply(
+    text: str,
+    client_sid: str,
+    preferred_karakter: str = "shiro",
+    voice_commands_enabled: bool = True,
+):
     """AI + TTS pipeline shared by audio STT and voice_text events."""
     if not text or not text.strip():
         socketio.emit("error", {"message": "Teks kosong"}, room=client_sid)
@@ -77,6 +197,10 @@ def _process_voice_reply(text: str, client_sid: str, preferred_karakter: str = "
 
     text = text.strip()
     logger.info("User said (%s): %s", preferred_karakter, text)
+
+    if _try_voice_app_launch(text, client_sid, preferred_karakter, voice_commands_enabled):
+        return
+
     socketio.emit("transcript", {"text": text, "karakter": preferred_karakter}, room=client_sid)
     socketio.emit("stream_start", {"karakter": preferred_karakter}, room=client_sid)
 
@@ -119,39 +243,13 @@ def _process_voice_reply(text: str, client_sid: str, preferred_karakter: str = "
     karakter = result.get("karakter", preferred_karakter)
     logger.info("AI reply (%s): %s", karakter, reply[:50])
 
-    socketio.emit(
-        "stream_end",
-        {"text": reply, "karakter": karakter, "msg_id": stream_msg_id},
-        room=client_sid,
+    _emit_character_response(
+        client_sid,
+        reply,
+        suara_text,
+        karakter,
+        stream_msg_id=stream_msg_id,
     )
-
-    try:
-        audio_file = generate_speech(suara_text, karakter)
-    except Exception as e:
-        logger.exception("TTS error: %s", e)
-        socketio.emit("response", {"text": reply, "audio": None, "karakter": karakter}, room=client_sid)
-        return
-
-    if not audio_file or not os.path.exists(audio_file):
-        logger.warning("TTS file not generated")
-        socketio.emit("response", {"text": reply, "audio": None, "karakter": karakter}, room=client_sid)
-        return
-
-    try:
-        with open(audio_file, "rb") as f:
-            audio_data = f.read()
-        audio_base64 = base64.b64encode(audio_data).decode("utf-8")
-        socketio.emit("response", {"text": reply, "audio": audio_base64, "karakter": karakter}, room=client_sid)
-        logger.info("Response sent with audio (%d bytes)", len(audio_data))
-    except Exception as e:
-        logger.exception("Error reading TTS file: %s", e)
-        socketio.emit("response", {"text": reply, "audio": None, "karakter": karakter}, room=client_sid)
-    finally:
-        try:
-            if audio_file and os.path.exists(audio_file):
-                os.unlink(audio_file)
-        except Exception as e:
-            logger.warning("Cleanup TTS file error: %s", e)
 
 
 @socketio.on("voice_text")
@@ -175,6 +273,11 @@ def handle_voice_text(data):
     karakter = (data.get("karakter") or "shiro").strip().lower()
     if karakter not in ("shiro", "sishin"):
         karakter = "shiro"
+    voice_commands_enabled = data.get("voice_commands", True)
+    if isinstance(voice_commands_enabled, str):
+        voice_commands_enabled = voice_commands_enabled.lower() not in ("0", "false", "off", "no")
+    else:
+        voice_commands_enabled = bool(voice_commands_enabled)
     if not text:
         with _processing_lock:
             _processing_audio = False
@@ -182,7 +285,9 @@ def handle_voice_text(data):
 
     def process_text():
         try:
-            _process_voice_reply(text, client_sid, karakter)
+            _process_voice_reply(
+                text, client_sid, karakter, voice_commands_enabled=voice_commands_enabled
+            )
         except Exception as e:
             logger.exception("Unexpected error in process_text: %s", e)
             try:
@@ -225,6 +330,11 @@ def handle_audio(data):
     karakter = (data.get("karakter") or "shiro").strip().lower()
     if karakter not in ("shiro", "sishin"):
         karakter = "shiro"
+    voice_commands_enabled = data.get("voice_commands", True)
+    if isinstance(voice_commands_enabled, str):
+        voice_commands_enabled = voice_commands_enabled.lower() not in ("0", "false", "off", "no")
+    else:
+        voice_commands_enabled = bool(voice_commands_enabled)
     
     try:
         # 1. Validasi input
@@ -269,7 +379,9 @@ def handle_audio(data):
                     }, room=client_sid)
                     return
 
-                _process_voice_reply(text, client_sid, karakter)
+                _process_voice_reply(
+                    text, client_sid, karakter, voice_commands_enabled=voice_commands_enabled
+                )
 
             except Exception as e:
                 logger.exception("Unexpected error in process_audio: %s", e)

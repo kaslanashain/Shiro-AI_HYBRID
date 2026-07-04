@@ -47,5 +47,21 @@ def test_resolve_character_uses_preferred():
     assert resolve_character("halo", preferred="sishin") == "sishin"
 
 
+def test_resolve_character_force_preferred_keeps_active_chat():
+    """Chat Shiro: menyebut Sishin tidak boleh switch ke Sishin."""
+    assert resolve_character("sishin lucu banget", preferred="shiro", force_preferred=True) == "shiro"
+    assert resolve_character("menurutmu gimana sishin?", preferred="shiro", force_preferred=True) == "shiro"
+    assert resolve_character("shiro manja ya", preferred="sishin", force_preferred=True) == "sishin"
+    assert resolve_character("kakak shiro cemburuan", preferred="sishin", force_preferred=True) == "sishin"
+
+
+def test_detect_sibling_mentions():
+    from app.chat import detect_sibling_mentions
+
+    assert detect_sibling_mentions("sishin lucu nggak?", "shiro") == ["sishin"]
+    assert detect_sibling_mentions("onee shiro manja", "sishin") == ["shiro"]
+    assert detect_sibling_mentions("halo sayang", "shiro") == []
+
+
 def test_bersihkan_teks_tts():
     assert bersihkan_teks_tts("test 🐱") == "test"
