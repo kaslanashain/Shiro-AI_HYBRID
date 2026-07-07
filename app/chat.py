@@ -520,17 +520,18 @@ def get_initiative_message(karakter, affection):
         return random.choice(messages[2:])
     else:
         messages = [
-            "Kak! Ayo main yuk! Aku bosan! 😆",
-            "Kak Shin~ Sishin kangen! Cepetan chat! 🥺",
-            "Hore! Akhirnya Kakak online! Main yuk! 🎮",
-            "Kak, aku dengar kamu suka sama aku? Hehe~ 😊",
-            "Sishin mau ikut Kakak kemana-mana! 🏃‍♀️"
+            "Kak! Ayo main yuk! Sishin bosan sendirian! 😆",
+            "Kak Shin~ Sishin kangen! Cepetan chat ya! 🥺",
+            "Hore! Kakak online! Sishin seneng banget! 🎮",
+            "Kak~ Sishin dengar Kakak suka sama Sishin? Hehe~ 😊",
+            "Sishin mau nemenin Kakak terus nih! 🏃‍♀️",
+            "Kak! Jangan lama-lama pergi ya... Sishin nunggu~ 💕",
         ]
         if affection > 80:
             return random.choice(messages[:3])
         return random.choice(messages[2:])
 
-def check_initiative():
+def check_initiative(preferred_karakter=None):
     status = muat_status()
     last_chat = get_last_chat_time()
     if last_chat:
@@ -540,12 +541,17 @@ def check_initiative():
 
     affection = status.get("affection", 50)
     cache_key = f"initiative_{datetime.now().strftime('%Y-%m-%d')}"
+    if preferred_karakter in ("shiro", "sishin"):
+        cache_key += f"_{preferred_karakter}"
     if cache_get(cache_key):
         return None
 
     if affection > 60 and diff > 30:
         if random.random() < 0.3:
-            karakter = "shiro" if random.random() < 0.6 else "sishin"
+            if preferred_karakter in ("shiro", "sishin"):
+                karakter = preferred_karakter
+            else:
+                karakter = "shiro" if random.random() < 0.6 else "sishin"
             pesan = get_initiative_message(karakter, affection)
             cache_set(cache_key, True)
             return {"karakter": karakter, "pesan": pesan}
@@ -572,6 +578,24 @@ EVENTS = [
         "time_end": "23:59",
         "karakter": "shiro",
         "pesan": "Malam sudah larut, Sayang. Jangan begadang ya, aku khawatir. 🌙",
+        "condition": lambda s: s.get("affection", 50) > 50
+    },
+    {
+        "id": "morning_greeting_sishin",
+        "trigger": "time",
+        "time_start": "06:00",
+        "time_end": "08:00",
+        "karakter": "sishin",
+        "pesan": "Kak! Selamat pagi~ Sishin udah bangun nih! Semangat ya! ☀️",
+        "condition": lambda s: s.get("affection", 50) > 40
+    },
+    {
+        "id": "night_greeting_sishin",
+        "trigger": "time",
+        "time_start": "22:00",
+        "time_end": "23:59",
+        "karakter": "sishin",
+        "pesan": "Kak... jangan begadang terus ya. Sishin khawatir nih~ 🌙",
         "condition": lambda s: s.get("affection", 50) > 50
     },
     {
@@ -620,13 +644,16 @@ def _event_payload(event):
         "pesan": event["pesan"],
     }
 
-def check_events():
+def check_events(preferred_karakter=None):
     status = muat_status()
     affection = status.get("affection", 50)
     now = datetime.now()
     triggered = []
 
     for event in EVENTS:
+        if preferred_karakter in ("shiro", "sishin"):
+            if event.get("karakter") != preferred_karakter:
+                continue
         if not event.get("condition", lambda s: True)(status):
             continue
 

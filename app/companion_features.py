@@ -32,25 +32,25 @@ RANDOM_CHECKINS = {
     },
     "sishin": {
         "happy": [
-            "Kak! Sishin lagi semangat nih! Ayo ngobrol!",
-            "Hehe~ Sishin kangen banget sama Kakak!",
+            "Kak! Sishin lagi semangat banget nih! Ayo ngobrol yuk!",
+            "Hehe~ Kakak! Sishin kangen banget sama Kak!",
             "Kak Shin! Main yuk! Sishin bosan sendirian~",
-            "Yay! Kakak masih online! Sishin seneng!",
+            "Yay! Kakak masih online! Sishin seneng banget!",
         ],
         "blush": [
-            "Kak... Sishin lagi mikirin kamu lho.",
-            "Ehehe~ Kakak lucu deh kalau diam-diam aja.",
-            "Sishin di sini kok! Chat yuk!",
+            "Kak... Sishin lagi mikirin Kakak lho~",
+            "Ehehe~ Kakak diam aja lucu deh~",
+            "Kak! Sishin di sini kok! Chat yuk~",
         ],
         "normal": [
-            "Kak, apa kabar?",
-            "Sishin lagi nunggu Kakak nih~",
-            "Jangan lupa makan ya, Kak!",
+            "Kak, apa kabar? Sishin nunggu nih~",
+            "Kak Shin~ Sishin lagi di sini kok!",
+            "Kak, jangan lupa makan ya! Sishin khawatir~",
         ],
         "sad": [
-            "Kak... jangan marah ya... Sishin khawatir...",
-            "Huft... Sishin jadi quiet kalau Kakak jauh...",
-            "Kak, masih inget Sishin kan?",
+            "Kak... jangan marah ya... Sishin takut Kakak pergi...",
+            "Huft... Sishin jadi sedih kalau Kakak jauh-jauh...",
+            "Kak, masih inget Sishin kan? Sishin di sini kok...",
         ],
     },
 }

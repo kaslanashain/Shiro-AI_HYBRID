@@ -54,6 +54,7 @@ function getAvatarExpressionSrc(char, affection) {
 function applyHomeAvatarExpression(char, affection) {
     var avatar = document.getElementById('homeAvatar');
     if (!avatar) return;
+    if (typeof window.isLive2DActive === 'function' && window.isLive2DActive()) return;
 
     char = window.CharacterState ? CharacterState.normalize(char) : (char === 'sishin' ? 'sishin' : 'shiro');
     var score = typeof affection === 'number' ? affection : getActiveAffection();

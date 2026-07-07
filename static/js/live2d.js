@@ -62,7 +62,13 @@
     }
 
     function getAvatarWrap() {
-        return document.querySelector('.avatar-container');
+        return document.querySelector('.avatar-container') ||
+            document.querySelector('.desktop-avatar-wrap');
+    }
+
+    function getFallbackAvatarEl() {
+        return document.getElementById('homeAvatar') ||
+            document.getElementById('deskAvatar');
     }
 
     function getAppTicker() {
@@ -86,13 +92,14 @@
     function prepLive2DLayout() {
         var container = getContainer();
         var wrap = getAvatarWrap();
-        var avatar = document.getElementById('homeAvatar');
+        var avatar = getFallbackAvatarEl();
         if (wrap) wrap.classList.add('live2d-active');
         if (container) container.classList.add('active');
         if (avatar) {
             avatar.style.opacity = '0';
             avatar.style.visibility = 'hidden';
             avatar.style.pointerEvents = 'none';
+            avatar.classList.add('hidden');
         }
     }
 
@@ -221,7 +228,7 @@
         char = normalizeChar(char);
         var container = getContainer();
         var wrap = getAvatarWrap();
-        var avatar = document.getElementById('homeAvatar');
+        var avatar = getFallbackAvatarEl();
 
         if (container) container.classList.remove('active');
         if (wrap) wrap.classList.remove('live2d-active');
@@ -230,6 +237,7 @@
             avatar.style.opacity = '';
             avatar.style.visibility = '';
             avatar.style.pointerEvents = '';
+            avatar.classList.remove('hidden');
             if (typeof global.applyHomeAvatarExpression === 'function') {
                 global.applyHomeAvatarExpression(char);
             } else {
@@ -242,13 +250,14 @@
     function applyLive2DVisible() {
         var container = getContainer();
         var wrap = getAvatarWrap();
-        var avatar = document.getElementById('homeAvatar');
+        var avatar = getFallbackAvatarEl();
         if (container) container.classList.add('active');
         if (wrap) wrap.classList.add('live2d-active');
         if (avatar) {
             avatar.style.opacity = '0';
             avatar.style.visibility = 'hidden';
             avatar.style.pointerEvents = 'none';
+            avatar.classList.add('hidden');
         }
         live2dReady = true;
         requestAnimationFrame(function() {
@@ -575,6 +584,7 @@
                 console.warn('[Live2D] Wardrobe activation failed:', err);
                 wardrobeLive2DMode = false;
                 applyPngFallback(char);
+                return false;
             });
     };
 

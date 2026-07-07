@@ -35,11 +35,11 @@
 
     function deliverProactive(data, source) {
         if (!data || !data.pesan) return;
+        var active = getActiveCharacter();
+        var karakter = data.karakter || active;
+        /* Jangan tampilkan kalimat Shiro saat Sishin aktif (dan sebaliknya) */
+        if (karakter !== active) return;
         lastFiredAt = Date.now();
-        var karakter = data.karakter || getActiveCharacter();
-        if (global.SystemAwareness && !SystemAwareness.isActiveCharacter(karakter)) {
-            karakter = getActiveCharacter();
-        }
         console.log('[RandomEvents]', source, karakter, data.pesan.slice(0, 40));
         if (typeof global.showNotification === 'function') {
             global.showNotification(karakter, data.pesan);
@@ -59,7 +59,8 @@
 
     function pollInitiative() {
         if (!canFire()) return;
-        fetchJson('/initiative')
+        var char = getActiveCharacter();
+        fetchJson('/initiative?karakter=' + encodeURIComponent(char))
             .then(function(data) {
                 if (data && data.pesan) deliverProactive(data, 'initiative');
             })
@@ -68,7 +69,8 @@
 
     function pollScheduledEvents() {
         if (!canFire()) return;
-        fetchJson('/event')
+        var char = getActiveCharacter();
+        fetchJson('/event?karakter=' + encodeURIComponent(char))
             .then(function(data) {
                 if (data && data.pesan) deliverProactive(data, 'event');
             })

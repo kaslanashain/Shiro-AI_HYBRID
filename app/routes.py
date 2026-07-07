@@ -40,6 +40,11 @@ def register_routes(app):
     def index():
         return render_template("index.html")
 
+    @app.route("/desktop")
+    def desktop_pet():
+        """Frameless desktop companion overlay (use with desktop_launcher.py)."""
+        return render_template("desktop.html")
+
     @app.route("/chat", methods=["POST"])
     def chat():
         data = request.get_json(silent=True) or {}
@@ -85,7 +90,10 @@ def register_routes(app):
     @app.route("/initiative", methods=["GET"])
     def initiative():
         try:
-            result = check_initiative()
+            karakter = request.args.get("karakter", "").strip().lower()
+            if karakter not in ("shiro", "sishin"):
+                karakter = None
+            result = check_initiative(preferred_karakter=karakter)
             if result:
                 return jsonify(result)
             return jsonify({}), 200
@@ -96,7 +104,10 @@ def register_routes(app):
     @app.route("/event", methods=["GET"])
     def event_check():
         try:
-            result = check_events()
+            karakter = request.args.get("karakter", "").strip().lower()
+            if karakter not in ("shiro", "sishin"):
+                karakter = None
+            result = check_events(preferred_karakter=karakter)
             if result:
                 return jsonify(result)
             return jsonify({}), 200

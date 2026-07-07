@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shiro AI · Desktop</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/premium.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="desktop-body">
+<div id="desktopPet" class="desktop-pet">
+    <div id="desktopDrag" class="desktop-drag" title="Geser karakter">
+        <span id="desktopCharName">Shiro</span>
+        <div class="desktop-drag-actions">
+            <button type="button" id="btnDeskShiro" class="desk-char-btn active" title="Shiro">S</button>
+            <button type="button" id="btnDeskSishin" class="desk-char-btn" title="Sishin">Si</button>
+            <button type="button" id="btnDeskOpenApp" class="desk-icon-btn" title="Buka app lengkap"><i class="fas fa-external-link-alt"></i></button>
+            <button type="button" id="btnDeskHide" class="desk-icon-btn" title="Sembunyikan"><i class="fas fa-minus"></i></button>
+        </div>
+    </div>
+
+    <div class="desktop-avatar-wrap">
+        <img id="deskAvatar" class="desk-avatar shiro-mode" src="{{ url_for('static', filename='images/shiro.png') }}" alt="Avatar">
+        <div id="live2dCanvas" class="live2d-container"></div>
+    </div>
+
+    <div id="deskBubble" class="desk-bubble hidden">
+        <p id="deskBubbleText">Halo~ aku di desktop kamu sekarang!</p>
+    </div>
+
+    <div id="deskTyping" class="desk-typing hidden"><span></span><span></span><span></span></div>
+
+    <div class="desktop-input-row">
+        <input type="text" id="deskInput" maxlength="200" placeholder="Ketik ke Shiro..." autocomplete="off">
+        <button type="button" id="deskSendBtn" class="desk-btn" title="Kirim"><i class="fas fa-paper-plane"></i></button>
+        <button type="button" id="deskMicBtn" class="desk-btn desk-mic" title="Tahan untuk bicara"><i class="fas fa-microphone"></i></button>
+    </div>
+    <p class="desk-hint">Space = bicara · Enter = kirim</p>
+</div>
+
+<script src="{{ url_for('static', filename='js/core/character-state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/core/asset-manager.js') }}"></script>
+<script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+<script>window.PIXI = window.PIXI || PIXI;</script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+<script src="{{ url_for('static', filename='js/live2d.js') }}"></script>
+<script src="{{ url_for('static', filename='js/desktop.js') }}"></script>
+</body>
+</html>

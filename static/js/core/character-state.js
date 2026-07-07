@@ -7,6 +7,22 @@
 
     var current = 'shiro';
     var listeners = [];
+    var STORAGE_KEY = 'shiro_active_character';
+
+    function loadStored() {
+        try {
+            var saved = localStorage.getItem(STORAGE_KEY);
+            if (saved === 'sishin' || saved === 'shiro') current = saved;
+        } catch (e) { /* ignore */ }
+    }
+
+    function saveStored(char) {
+        try {
+            localStorage.setItem(STORAGE_KEY, char);
+        } catch (e) { /* ignore */ }
+    }
+
+    loadStored();
 
     function normalize(char) {
         return char === 'sishin' ? 'sishin' : 'shiro';
@@ -21,6 +37,7 @@
         if (char === current) return false;
         var prev = current;
         current = char;
+        saveStored(char);
         listeners.forEach(function(fn) {
             try { fn(char, prev); } catch (e) { console.warn('[CharacterState]', e); }
         });
