@@ -9,7 +9,8 @@ from app.chat import (
     apply_sawer, jawab_shiro,
     check_initiative, check_events, get_mood,
 )
-from app.vision import analyze_image, decode_base64_image
+from app.vision import analyze_image, analyze_video, decode_base64_image
+from app.video import VIDEO_MIMES, save_uploaded_video
 from app.db import _resolve_user_id, muat_status
 from app.story import get_active_story, process_story_action, start_story, STORY_THEMES
 from app.tts import generate_speech, cleanup_old_tts_files
@@ -17,6 +18,7 @@ from app.voice_commands import list_available_apps, process_launch_command
 
 logger = logging.getLogger(__name__)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_VIDEO_TYPES = VIDEO_MIMES | {"video/mp4", "video/webm", "video/quicktime"}
 
 def _chat_payload(data):
     pesan = (data.get("message") or "").strip()
@@ -341,6 +343,81 @@ def register_routes(app):
         except Exception as exc:
             logger.exception("Upload failed: %s", exc)
             return jsonify({"error": "Gagal memproses gambar"}), 500
+
+    @app.route("/upload_video", methods=["POST"])
+    def upload_video():
+        """Multipart video upload → keyframe extraction → Gemini Vision."""
+        try:
+            video_bytes = None
+            mime = "video/mp4"
+            caption = ""
+            karakter = "shiro"
+            affection = 50
+            filename = ""
+
+            if "video" not in request.files:
+                return jsonify({"error": "Tidak ada video"}), 400
+            file = request.files["video"]
+            if not file.filename:
+                return jsonify({"error": "Nama file kosong"}), 400
+
+            filename = file.filename
+            mime = (file.mimetype or "video/mp4").split(";")[0].strip().lower()
+            ext = os.path.splitext(filename)[1].lower()
+            if mime not in ALLOWED_VIDEO_TYPES and ext not in {".mp4", ".webm", ".mov", ".m4v"}:
+                return jsonify({"error": "Format video tidak didukung (mp4, webm, mov)"}), 400
+
+            video_bytes = file.read()
+            max_bytes = getattr(config, "MAX_VIDEO_UPLOAD_BYTES", 20 * 1024 * 1024)
+            if len(video_bytes) > max_bytes:
+                return jsonify({"error": "Video terlalu besar (maks 20 MB)"}), 400
+            if len(video_bytes) == 0:
+                return jsonify({"error": "File video kosong"}), 400
+
+            caption = request.form.get("caption", "").strip()
+            karakter = (request.form.get("karakter") or request.form.get("character_name") or "shiro").strip().lower()
+            affection = request.form.get("affection_level") or request.form.get("affection") or 50
+
+            if karakter not in ("shiro", "sishin"):
+                karakter = "shiro"
+
+            status = muat_status()
+            try:
+                affection = int(affection)
+            except (TypeError, ValueError):
+                affection = status.get("affection", 50)
+
+            video_url = save_uploaded_video(video_bytes, mime, filename)
+
+            result = analyze_video(
+                video_bytes,
+                mime,
+                character_name=karakter,
+                affection_level=affection,
+                user_caption=caption,
+                filename=filename,
+            )
+
+            from app.db import simpan_memori
+            mem_text = caption or "[video]"
+            simpan_memori(mem_text, result.get("text", ""), karakter)
+
+            return jsonify({
+                "reply": result.get("text", ""),
+                "suara": result.get("suara", result.get("text", "")),
+                "status": status,
+                "karakter": result.get("karakter", karakter),
+                "affection_level": result.get("affection_level", affection),
+                "vision_ok": result.get("vision_ok", False),
+                "provider": result.get("provider"),
+                "video_url": video_url,
+                "frame_count": result.get("frame_count"),
+            })
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            logger.exception("Video upload failed: %s", exc)
+            return jsonify({"error": "Gagal memproses video"}), 500
 
     @app.route("/api/vision/analyze", methods=["POST"])
     def api_vision_analyze():

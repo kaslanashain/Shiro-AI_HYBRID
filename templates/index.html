@@ -178,6 +178,9 @@
         <div class="action-grid">
             <button class="action-btn primary chat-cta" onclick="openChat()"><i class="fas fa-comment"></i><span>Chat</span></button>
             <button id="tombol-upload" class="action-btn" onclick="openCamera()"><i class="fas fa-camera"></i><span>Foto</span></button>
+            <button class="action-btn" onclick="openVideoModal()" title="Upload atau rekam video">
+                <i class="fas fa-video"></i><span>Video</span>
+            </button>
             <button class="action-btn" onclick="startVoice()"><i class="fas fa-microphone"></i><span>Suara</span></button>
             <button class="action-btn" onclick="openSawer()"><i class="fas fa-gift"></i><span>Sawer</span></button>
             <button class="action-btn" onclick="toggleThemeMenu()"><i class="fas fa-palette"></i><span>Tema</span></button>
@@ -254,26 +257,42 @@
             </div>
             <div class="modal-body">
                 <div class="vision-tabs">
-                    <button type="button" id="visionTabUpload" class="vision-tab active">
-                        <i class="fas fa-image"></i> Upload
+                    <button type="button" id="visionTabPhoto" class="vision-tab active">
+                        <i class="fas fa-image"></i> Foto
+                    </button>
+                    <button type="button" id="visionTabVideo" class="vision-tab">
+                        <i class="fas fa-film"></i> Video
                     </button>
                     <button type="button" id="visionTabWebcam" class="vision-tab">
-                        <i class="fas fa-camera"></i> Webcam
+                        <i class="fas fa-camera"></i> Kamera
                     </button>
                 </div>
-                <div id="visionUploadPanel">
+                <div id="visionPhotoPanel">
                     <input type="file" id="imageUpload" accept="image/*" capture="environment">
+                </div>
+                <div id="visionVideoPanel" style="display:none;">
+                    <input type="file" id="videoUpload" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
+                    <p class="vision-hint">MP4, WebM, MOV — maks. 20 MB</p>
                 </div>
                 <div id="visionWebcamPanel" style="display:none;">
                     <video id="webcamVideo" class="webcam-video" playsinline autoplay muted></video>
                     <canvas id="webcamCanvas" style="display:none;"></canvas>
-                    <button type="button" id="webcamCaptureBtn" class="record-btn">
-                        <i class="fas fa-camera"></i> Ambil Foto
-                    </button>
+                    <div class="vision-webcam-actions">
+                        <button type="button" id="webcamCaptureBtn" class="record-btn">
+                            <i class="fas fa-camera"></i> Ambil Foto
+                        </button>
+                        <button type="button" id="webcamRecordBtn" class="record-btn">
+                            <i class="fas fa-video"></i> Rekam Video
+                        </button>
+                    </div>
                 </div>
                 <div id="imagePreview" class="vision-preview"></div>
+                <div id="visionProgress" class="vision-progress" style="display:none;">
+                    <div class="vision-progress-track"><div id="visionProgressBar" class="vision-progress-bar"></div></div>
+                    <span id="visionProgressText" class="vision-progress-text">Memproses...</span>
+                </div>
                 <input type="text" id="visionCaption" class="vision-caption" maxlength="200"
-                    placeholder="Pesan opsional (contoh: gimana rambutku?)">
+                    placeholder="Pesan opsional (contoh: kucingku lucu kan?)">
                 <button type="button" id="visionSendBtn" class="upload-btn">Kirim ke Shiro</button>
             </div>
         </div>

@@ -266,3 +266,74 @@
     font-family: inherit;
     font-size: 0.85rem;
 }
+
+.vision-hint {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.vision-webcam-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.vision-webcam-actions .record-btn {
+    flex: 1;
+}
+
+.record-btn.recording {
+    border-color: rgba(255, 80, 80, 0.6) !important;
+    background: rgba(255, 60, 60, 0.18) !important;
+    color: #ffb4b4 !important;
+}
+
+.vision-preview video,
+.vision-preview-video {
+    width: 100%;
+    max-height: 200px;
+    border-radius: 12px;
+    background: #000;
+}
+
+.vision-progress {
+    margin: 10px 0;
+}
+
+.vision-progress-track {
+    height: 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.vision-progress-bar {
+    height: 100%;
+    width: 0;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #ff6b8a, #c084fc);
+    transition: width 0.25s ease;
+}
+
+.vision-progress-text {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.chat-media-video,
+.chat-media-image {
+    display: block;
+    max-width: 100%;
+    max-height: 180px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+}
+
+.chat-media-caption {
+    display: block;
+    font-size: 0.82rem;
+    opacity: 0.9;
+}

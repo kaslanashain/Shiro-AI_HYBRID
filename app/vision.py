@@ -151,8 +151,19 @@ def decode_base64_image(payload: str) -> tuple[bytes, str]:
     return image_bytes, mime
 
 
-def _build_user_message(caption: str) -> str:
+def _build_user_message(caption: str, media_kind: str = "image") -> str:
     caption = (caption or "").strip()
+    if media_kind == "video":
+        if caption:
+            return (
+                f"Kak Shin mengirim video ini dengan pesan: \"{caption}\". "
+                "Ini adalah beberapa frame dari video tersebut. Tonton/lihat urutan frame-nya, "
+                "pahami apa yang terjadi, lalu balas sesuai karakter."
+            )
+        return (
+            "Kak Shin mengirim video ini. Ini adalah beberapa frame dari video. "
+            "Pahami aksi/suasana/objek yang terlihat, lalu balas sesuai karakter."
+        )
     if caption:
         return (
             f"Kak Shin mengirim foto ini dengan pesan: \"{caption}\". "
@@ -185,6 +196,83 @@ def _parse_vision_response(raw: str, char: str) -> dict[str, str]:
 
     fallback = persona["fallback"]
     return {"text": fallback, "suara": fallback}
+
+
+def _call_gemini_vision_multi(
+    system_prompt: str,
+    frames: list[tuple[bytes, str]],
+    user_message: str,
+) -> Optional[str]:
+    if not config.GEMINI_API_KEY or not frames:
+        return None
+    try:
+        import google.generativeai as genai
+
+        genai.configure(api_key=config.GEMINI_API_KEY)
+        model_name = getattr(config, "GEMINI_VISION_MODEL", "gemini-1.5-flash")
+        model = genai.GenerativeModel(model_name)
+        parts: list[Any] = [system_prompt, user_message]
+        for image_bytes, mime_type in frames:
+            parts.append({"mime_type": mime_type or "image/jpeg", "data": image_bytes})
+        response = model.generate_content(
+            parts,
+            generation_config={
+                "temperature": 0.85,
+                "max_output_tokens": 500,
+            },
+        )
+        return (response.text or "").strip()
+    except Exception as exc:
+        logger.exception("Gemini multi-frame vision failed: %s", exc)
+        return None
+
+
+def _call_openai_vision_multi(
+    system_prompt: str,
+    frames: list[tuple[bytes, str]],
+    user_message: str,
+) -> Optional[str]:
+    api_key = getattr(config, "OPENAI_API_KEY", "") or ""
+    if not api_key or not frames:
+        return None
+    try:
+        import requests
+
+        content: list[dict[str, Any]] = [{"type": "text", "text": user_message}]
+        for image_bytes, mime_type in frames:
+            b64 = base64.b64encode(image_bytes).decode("ascii")
+            mime = mime_type or "image/jpeg"
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64}"},
+                }
+            )
+        model = getattr(config, "OPENAI_VISION_MODEL", "gpt-4o-mini")
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content},
+            ],
+            "max_tokens": 500,
+            "temperature": 0.85,
+        }
+        resp = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=90,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as exc:
+        logger.exception("OpenAI multi-frame vision failed: %s", exc)
+        return None
 
 
 def _call_gemini_vision(
@@ -321,6 +409,73 @@ def analyze_image(
         "affection_level": level,
         "provider": provider,
         "vision_ok": True,
+    }
+
+
+def analyze_video(
+    video_bytes: bytes,
+    mime_type: str,
+    character_name: str = "shiro",
+    affection_level: int = 50,
+    user_caption: str = "",
+    filename: str = "",
+) -> dict[str, Any]:
+    """Analyze video via extracted keyframes → multimodal LLM."""
+    from app.video import extract_keyframes_from_bytes
+
+    char = "sishin" if character_name == "sishin" else "shiro"
+    level = clamp_affection(affection_level)
+    persona = VISION_PERSONAS[char]
+
+    frames = extract_keyframes_from_bytes(video_bytes, mime_type, filename=filename)
+    if not frames:
+        msg = (
+            "Maaf Sayang, Shiro belum bisa membuka video ini... "
+            "Pastikan ffmpeg terpasang atau coba format MP4/WebM yang lebih kecil."
+            if char == "shiro"
+            else "Kak... maaf, Sishin belum bisa melihat video ini. "
+            "Bisakah Kak kirim ulang dalam format MP4 atau WebM?"
+        )
+        return {
+            "text": msg,
+            "suara": msg,
+            "karakter": char,
+            "affection_level": level,
+            "provider": None,
+            "vision_ok": False,
+            "error": "Keyframe extraction failed — install ffmpeg",
+        }
+
+    system_prompt = build_vision_system_prompt(char, level)
+    user_message = _build_user_message(user_caption, media_kind="video")
+
+    raw = _call_gemini_vision_multi(system_prompt, frames, user_message)
+    provider = "gemini" if raw else None
+    if not raw:
+        raw = _call_openai_vision_multi(system_prompt, frames, user_message)
+        provider = "openai" if raw else provider
+
+    if not raw:
+        fallback = persona["fallback"]
+        return {
+            "text": fallback,
+            "suara": fallback,
+            "karakter": char,
+            "affection_level": level,
+            "provider": None,
+            "vision_ok": False,
+            "error": "Vision API unavailable — set GEMINI_API_KEY or OPENAI_API_KEY in .env",
+            "frame_count": len(frames),
+        }
+
+    parsed = _parse_vision_response(raw, char)
+    return {
+        **parsed,
+        "karakter": char,
+        "affection_level": level,
+        "provider": provider,
+        "vision_ok": True,
+        "frame_count": len(frames),
     }
 
 

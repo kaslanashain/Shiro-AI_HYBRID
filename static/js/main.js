@@ -254,7 +254,7 @@ function updateCharCount() {
 // ==========================================
 // ADD MESSAGE (CHAT BOX)
 // ==========================================
-function addMessage(text, sender) {
+function addMessage(text, sender, media) {
     var chatBox = document.getElementById('chatBox');
     if (!chatBox) return;
 
@@ -271,7 +271,36 @@ function addMessage(text, sender) {
 
     var bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
-    bubble.textContent = text;
+
+    if (media && media.url && media.type === 'video') {
+        var video = document.createElement('video');
+        video.src = media.url;
+        video.controls = true;
+        video.playsInline = true;
+        video.className = 'chat-media-video';
+        bubble.appendChild(video);
+        if (text) {
+            var cap = document.createElement('span');
+            cap.className = 'chat-media-caption';
+            cap.textContent = text;
+            bubble.appendChild(cap);
+        }
+    } else if (media && media.url && media.type === 'image') {
+        var img = document.createElement('img');
+        img.src = media.url;
+        img.alt = 'Media';
+        img.className = 'chat-media-image';
+        bubble.appendChild(img);
+        if (text) {
+            var capImg = document.createElement('span');
+            capImg.className = 'chat-media-caption';
+            capImg.textContent = text;
+            bubble.appendChild(capImg);
+        }
+    } else {
+        bubble.textContent = text;
+    }
+
     messageDiv.appendChild(bubble);
     chatBox.appendChild(messageDiv);
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -890,8 +919,12 @@ document.addEventListener('DOMContentLoaded', function() {
 // CAMERA (Modal)
 // ==========================================
 function openCamera() {
+    if (window.VisionCapture && VisionCapture.openPhoto) {
+        VisionCapture.openPhoto();
+        return;
+    }
     if (window.VisionCapture && VisionCapture.open) {
-        VisionCapture.open();
+        VisionCapture.open('photo');
         return;
     }
     var modal = document.getElementById('cameraModal');

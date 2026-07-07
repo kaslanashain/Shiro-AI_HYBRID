@@ -31,6 +31,14 @@ def test_build_vision_prompt_sishin_low():
     assert "elegan" in prompt.lower() or "refined" in prompt.lower() or "anggun" in prompt.lower()
 
 
+def test_build_user_message_video():
+    from app.vision import _build_user_message
+
+    msg = _build_user_message("lucu kan?", media_kind="video")
+    assert "video" in msg.lower()
+    assert "lucu kan?" in msg
+
+
 def test_decode_base64_image():
     # 1x1 red pixel PNG
     b64 = (
