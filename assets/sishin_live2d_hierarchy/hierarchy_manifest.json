@@ -1,0 +1,546 @@
+{
+  "model": "Sishin",
+  "canvas": {
+    "width": 1340,
+    "height": 2980
+  },
+  "groups": [
+    {
+      "folder": "01_Rambut_Belakang",
+      "cubism_group": "Grup_Rambut_Belakang",
+      "parts": [
+        {
+          "order": 1,
+          "file": "01_Rambut_Belakang_Atas.png",
+          "part_name": "Rambut_Belakang_Atas",
+          "cubism_part_name": "Rambut_Belakang_Atas",
+          "bbox": [
+            431,
+            530,
+            943,
+            993
+          ],
+          "size": [
+            512,
+            463
+          ]
+        },
+        {
+          "order": 2,
+          "file": "02_Rambut_Belakang_Bawah.png",
+          "part_name": "Rambut_Belakang_Bawah",
+          "cubism_part_name": "Rambut_Belakang_Bawah",
+          "bbox": [
+            377,
+            775,
+            1007,
+            1224
+          ],
+          "size": [
+            630,
+            449
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "02_Badan",
+      "cubism_group": "Grup_Badan",
+      "parts": [
+        {
+          "order": 3,
+          "file": "03_Badan_Dan_Leher.png",
+          "part_name": "Badan_Dan_Leher",
+          "cubism_part_name": "Badan_Dan_Leher",
+          "bbox": [
+            337,
+            879,
+            1060,
+            1682
+          ],
+          "size": [
+            723,
+            803
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "03_Kepala",
+      "cubism_group": "Grup_Kepala",
+      "parts": [
+        {
+          "order": 4,
+          "file": "04_Telinga_Kiri.png",
+          "part_name": "Telinga_Kiri",
+          "cubism_part_name": "Telinga_Kiri",
+          "bbox": [
+            750,
+            494,
+            874,
+            660
+          ],
+          "size": [
+            124,
+            166
+          ]
+        },
+        {
+          "order": 5,
+          "file": "05_Telinga_Kanan.png",
+          "part_name": "Telinga_Kanan",
+          "cubism_part_name": "Telinga_Kanan",
+          "bbox": [
+            489,
+            520,
+            617,
+            684
+          ],
+          "size": [
+            128,
+            164
+          ]
+        },
+        {
+          "order": 6,
+          "file": "06_Base_Wajah.png",
+          "part_name": "Base_Wajah",
+          "cubism_part_name": "Base_Wajah",
+          "bbox": [
+            557,
+            604,
+            811,
+            897
+          ],
+          "size": [
+            254,
+            293
+          ]
+        },
+        {
+          "order": 7,
+          "file": "07_Rona_Wajah_Kiri.png",
+          "part_name": "Rona_Wajah_Kiri",
+          "cubism_part_name": "Rona_Wajah_Kiri",
+          "bbox": [
+            717,
+            769,
+            810,
+            849
+          ],
+          "size": [
+            93,
+            80
+          ]
+        },
+        {
+          "order": 8,
+          "file": "08_Rona_Wajah_Kanan.png",
+          "part_name": "Rona_Wajah_Kanan",
+          "cubism_part_name": "Rona_Wajah_Kanan",
+          "bbox": [
+            574,
+            769,
+            676,
+            851
+          ],
+          "size": [
+            102,
+            82
+          ]
+        },
+        {
+          "order": 9,
+          "file": "09_Putih_Mata_Kiri.png",
+          "part_name": "Putih_Mata_Kiri",
+          "cubism_part_name": "Putih_Mata_Kiri",
+          "bbox": [
+            723,
+            757,
+            829,
+            1100
+          ],
+          "size": [
+            106,
+            343
+          ]
+        },
+        {
+          "order": 10,
+          "file": "10_Putih_Mata_kanan.png",
+          "part_name": "Putih_Mata_kanan",
+          "cubism_part_name": "Putih_Mata_kanan",
+          "bbox": [
+            1224,
+            424,
+            1289,
+            461
+          ],
+          "size": [
+            65,
+            37
+          ]
+        },
+        {
+          "order": 11,
+          "file": "11_Bola_Mata_Kiri.png",
+          "part_name": "Bola_Mata_Kiri",
+          "cubism_part_name": "Bola_Mata_Kiri",
+          "bbox": [
+            731,
+            748,
+            780,
+            803
+          ],
+          "size": [
+            49,
+            55
+          ]
+        },
+        {
+          "order": 12,
+          "file": "12_Bola_Mata_Kanan.png",
+          "part_name": "Bola_Mata_Kanan",
+          "cubism_part_name": "Bola_Mata_Kanan",
+          "bbox": [
+            606,
+            750,
+            654,
+            801
+          ],
+          "size": [
+            48,
+            51
+          ]
+        },
+        {
+          "order": 13,
+          "file": "13_Kelopak_Atas_Kiri.png",
+          "part_name": "Kelopak_Atas_Kiri",
+          "cubism_part_name": "Kelopak_Atas_Kiri",
+          "bbox": [
+            725,
+            735,
+            770,
+            756
+          ],
+          "size": [
+            45,
+            21
+          ]
+        },
+        {
+          "order": 14,
+          "file": "14_Kelopak_Atas_Kanan.png",
+          "part_name": "Kelopak_Atas_Kanan",
+          "cubism_part_name": "Kelopak_Atas_Kanan",
+          "bbox": [
+            609,
+            737,
+            660,
+            754
+          ],
+          "size": [
+            51,
+            17
+          ]
+        },
+        {
+          "order": 15,
+          "file": "15_Kelopak_Mata_Kiri.png",
+          "part_name": "Kelopak_Mata_Kiri",
+          "cubism_part_name": "Kelopak_Mata_Kiri",
+          "bbox": [
+            731,
+            748,
+            801,
+            785
+          ],
+          "size": [
+            70,
+            37
+          ]
+        },
+        {
+          "order": 16,
+          "file": "16_Kelopak_Mata_Kanan.png",
+          "part_name": "Kelopak_Mata_Kanan",
+          "cubism_part_name": "Kelopak_Mata_Kanan",
+          "bbox": [
+            586,
+            746,
+            658,
+            789
+          ],
+          "size": [
+            72,
+            43
+          ]
+        },
+        {
+          "order": 17,
+          "file": "17_Kelopak_Bawah_Kiri.png",
+          "part_name": "Kelopak_Bawah_Kiri",
+          "cubism_part_name": "Kelopak_Bawah_Kiri",
+          "bbox": [
+            733,
+            782,
+            786,
+            813
+          ],
+          "size": [
+            53,
+            31
+          ]
+        },
+        {
+          "order": 18,
+          "file": "18_Kelopak_Bawah_Kanan.png",
+          "part_name": "Kelopak_Bawah_Kanan",
+          "cubism_part_name": "Kelopak_Bawah_Kanan",
+          "bbox": [
+            597,
+            788,
+            644,
+            804
+          ],
+          "size": [
+            47,
+            16
+          ]
+        },
+        {
+          "order": 19,
+          "file": "19_Bulu_Mata_Depan_Kiri.png",
+          "part_name": "Bulu_Mata_Depan_Kiri",
+          "cubism_part_name": "Bulu_Mata_Depan_Kiri",
+          "bbox": [
+            737,
+            748,
+            787,
+            759
+          ],
+          "size": [
+            50,
+            11
+          ]
+        },
+        {
+          "order": 20,
+          "file": "20_Bulu_Mata_Blkng_Kiri.png",
+          "part_name": "Bulu_Mata_Blkng_Kiri",
+          "cubism_part_name": "Bulu_Mata_Blkng_Kiri",
+          "bbox": [
+            784,
+            762,
+            805,
+            776
+          ],
+          "size": [
+            21,
+            14
+          ]
+        },
+        {
+          "order": 21,
+          "file": "21_Bulu_Mata_Depan_Kanan.png",
+          "part_name": "Bulu_Mata_Depan_Kanan",
+          "cubism_part_name": "Bulu_Mata_Depan_Kanan",
+          "bbox": [
+            602,
+            746,
+            655,
+            763
+          ],
+          "size": [
+            53,
+            17
+          ]
+        },
+        {
+          "order": 22,
+          "file": "22_Bulu_Mata_Blkng_Kanan.png",
+          "part_name": "Bulu_Mata_Blkng_Kanan",
+          "cubism_part_name": "Bulu_Mata_Blkng_Kanan",
+          "bbox": [
+            581,
+            760,
+            598,
+            765
+          ],
+          "size": [
+            17,
+            5
+          ]
+        },
+        {
+          "order": 23,
+          "file": "23_Alis_Kiri.png",
+          "part_name": "Alis_Kiri",
+          "cubism_part_name": "Alis_Kiri",
+          "bbox": [
+            612,
+            699,
+            808,
+            729
+          ],
+          "size": [
+            196,
+            30
+          ]
+        },
+        {
+          "order": 24,
+          "file": "24_Alis_Kanan.png",
+          "part_name": "Alis_Kanan",
+          "cubism_part_name": "Alis_Kanan",
+          "bbox": [
+            591,
+            699,
+            749,
+            850
+          ],
+          "size": [
+            158,
+            151
+          ]
+        },
+        {
+          "order": 25,
+          "file": "25_Hidung.png",
+          "part_name": "Hidung",
+          "cubism_part_name": "Hidung",
+          "bbox": [
+            681,
+            808,
+            712,
+            825
+          ],
+          "size": [
+            31,
+            17
+          ]
+        },
+        {
+          "order": 26,
+          "file": "26_Dalam_Mulut.png",
+          "part_name": "Dalam_Mulut",
+          "cubism_part_name": "Dalam_Mulut",
+          "bbox": [
+            671,
+            839,
+            720,
+            863
+          ],
+          "size": [
+            49,
+            24
+          ]
+        },
+        {
+          "order": 27,
+          "file": "27_Mulut_Bawah.png",
+          "part_name": "Mulut_Bawah",
+          "cubism_part_name": "Mulut_Bawah",
+          "bbox": [
+            676,
+            849,
+            725,
+            866
+          ],
+          "size": [
+            49,
+            17
+          ]
+        },
+        {
+          "order": 28,
+          "file": "28_Mulut_Atas.png",
+          "part_name": "Mulut_Atas",
+          "cubism_part_name": "Mulut_Atas",
+          "bbox": [
+            670,
+            836,
+            723,
+            852
+          ],
+          "size": [
+            53,
+            16
+          ]
+        },
+        {
+          "order": 29,
+          "file": "29_Rambut_Samping_Kiri.png",
+          "part_name": "Rambut_Samping_Kiri",
+          "cubism_part_name": "Rambut_Samping_Kiri",
+          "bbox": [
+            625,
+            529,
+            887,
+            948
+          ],
+          "size": [
+            262,
+            419
+          ]
+        },
+        {
+          "order": 30,
+          "file": "30_Rambut_Samping_Kanan.png",
+          "part_name": "Rambut_Samping_Kanan",
+          "cubism_part_name": "Rambut_Samping_Kanan",
+          "bbox": [
+            493,
+            538,
+            653,
+            961
+          ],
+          "size": [
+            160,
+            423
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "04_Rambut_Depan",
+      "cubism_group": "Grup_Rambut_Depan",
+      "parts": [
+        {
+          "order": 31,
+          "file": "31_Poni_Depan.png",
+          "part_name": "Poni_Depan",
+          "cubism_part_name": "Poni_Depan",
+          "bbox": [
+            632,
+            548,
+            741,
+            760
+          ],
+          "size": [
+            109,
+            212
+          ]
+        },
+        {
+          "order": 32,
+          "file": "32_Ahoge.png",
+          "part_name": "Ahoge",
+          "cubism_part_name": "Ahoge",
+          "bbox": [
+            663,
+            477,
+            720,
+            564
+          ],
+          "size": [
+            57,
+            87
+          ]
+        }
+      ]
+    }
+  ],
+  "import_tip": "Import Sishin_hierarchy.psd ke Cubism (disarankan) ATAU drag folder berurutan 01→04"
+}

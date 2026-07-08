@@ -6,9 +6,9 @@
     'use strict';
 
     var MODEL_PATHS = {
-        /* Official Live2D samples (Haru/Hiyori) as placeholders until custom Shiro/Sishin models exist */
         shiro: '/static/live2d/shiro/Haru.model3.json',
-        sishin: '/static/live2d/sishin/Hiyori.model3.json'
+        sishin: '/static/live2d/sishin_custom/Sishin_l2d.model3.json',
+        sishin_placeholder: '/static/live2d/sishin/Hiyori.model3.json'
     };
 
     var FALLBACK_PNG = {
@@ -440,12 +440,29 @@
 
         if (global.AssetManager) {
             var outfits = AssetManager.getCatalog(karakter);
+            var selId = typeof AssetManager.getSelectedOutfit === 'function'
+                ? AssetManager.getSelectedOutfit(karakter) : null;
+            var chosen = null;
+
+            /* Prefer the outfit the user actually selected in the wardrobe */
             for (var i = 0; i < outfits.length; i++) {
-                if (outfits[i].id === 'live2d' && outfits[i].modelPath) {
-                    path = outfits[i].modelPath;
+                if (outfits[i].id === selId && outfits[i].mode === 'live2d' && outfits[i].modelPath) {
+                    chosen = outfits[i].modelPath;
                     break;
                 }
             }
+
+            /* Fallback: first available Live2D outfit with a model path */
+            if (!chosen) {
+                for (var j = 0; j < outfits.length; j++) {
+                    if (outfits[j].mode === 'live2d' && outfits[j].modelPath) {
+                        chosen = outfits[j].modelPath;
+                        break;
+                    }
+                }
+            }
+
+            if (chosen) path = chosen;
         }
 
         var token = ++loadToken;

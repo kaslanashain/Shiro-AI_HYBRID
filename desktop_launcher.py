@@ -128,10 +128,110 @@ def _toggle_autostart(icon, _item):
         print(f"[Desktop] Autostart error: {exc}")
 
 
+def _stop_webview_audio():
+    if not AppState.window:
+        return
+    try:
+        AppState.window.evaluate_js(
+            "(function(){"
+            "document.querySelectorAll('audio').forEach(function(a){"
+            "try{a.pause();a.removeAttribute('src');a.load();}catch(e){}"
+            "});"
+            "if(window.stopAllAppAudio)window.stopAllAppAudio();"
+            "})();"
+        )
+    except Exception:
+        pass
+
+
+def _signal_browser_stop_bgm():
+    """Buka /stop-bgm sekali agar semua tab localhost:5000 stop BGM via localStorage."""
+    url = f"{BASE_URL}/stop-bgm"
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(
+                ['cmd', '/c', 'start', '', url],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                close_fds=True,
+            )
+        else:
+            webbrowser.open(url)
+    except Exception:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+
+
+def _request_server_shutdown():
+    try:
+        stop_req = urllib.request.Request(
+            f"{BASE_URL}/api/stop-audio",
+            data=b"",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(stop_req, timeout=3)
+    except Exception:
+        pass
+    time.sleep(0.4)
+    try:
+        req = urllib.request.Request(
+            f"{BASE_URL}/api/shutdown",
+            data=b"",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req, timeout=3)
+        return True
+    except Exception:
+        return False
+
+
+def _force_kill_port_listeners():
+    if sys.platform != "win32":
+        return
+    try:
+        out = subprocess.check_output(
+            f'netstat -ano | findstr ":{PORT}" | findstr LISTENING',
+            shell=True,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        pids = set()
+        for line in out.strip().splitlines():
+            parts = line.split()
+            if parts:
+                pids.add(parts[-1])
+        for pid in pids:
+            if pid.isdigit() and int(pid) != os.getpid():
+                subprocess.run(
+                    ["taskkill", "/F", "/PID", pid],
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    check=False,
+                )
+    except Exception:
+        pass
+
+
 def _quit_app(icon=None, _item=None):
     if AppState.shutting_down:
         return
     AppState.shutting_down = True
+
+    # 1) Matikan BGM di semua tab browser (tanpa perlu tutup tab manual)
+    if _server_up():
+        _signal_browser_stop_bgm()
+        time.sleep(0.5)
+        _request_server_shutdown()
+        time.sleep(0.8)
+
+    # 2) Pastikan server benar-benar mati
+    _force_kill_port_listeners()
+    time.sleep(0.2)
+
+    _stop_webview_audio()
+
     if AppState.tray_icon:
         try:
             AppState.tray_icon.stop()

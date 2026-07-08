@@ -267,6 +267,20 @@
             showTyping(false);
             if (err && err.message) showBubble(err.message);
         });
+
+        socket.on('app_shutdown', function() {
+            if (audioPlayer) {
+                try {
+                    audioPlayer.pause();
+                    audioPlayer.src = '';
+                } catch (e) { /* ignore */ }
+                audioPlayer = null;
+            }
+            if (global.stopLive2DLipSync) global.stopLive2DLipSync();
+            try {
+                localStorage.setItem('shiro_ai_stop_audio', String(Date.now()));
+            } catch (e) { /* ignore */ }
+        });
     }
 
     function initLive2DForChar(char) {

@@ -87,6 +87,17 @@ def register_routes(app):
     def get_status():
         return jsonify(muat_status())
 
+    @app.route("/stop-bgm")
+    def stop_bgm_client():
+        """Mini page: signals all open Shiro tabs (same origin) to stop BGM via localStorage."""
+        return (
+            "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Shiro AI</title></head>"
+            "<body><script>"
+            "try{localStorage.setItem('shiro_ai_stop_audio',String(Date.now()));}catch(e){}"
+            "setTimeout(function(){try{window.close();}catch(e){}},400);"
+            "</script></body></html>"
+        )
+
     @app.route("/initiative", methods=["GET"])
     def initiative():
         try:
@@ -225,8 +236,15 @@ def register_routes(app):
                 ],
                 "sishin": [
                     {
+                        "id": "live2d_custom",
+                        "label": "Live2D Sishin (Original)",
+                        "mode": "live2d",
+                        "preview": "/static/images/sishin.png",
+                        "modelPath": "/static/live2d/sishin_custom/Sishin_l2d.model3.json",
+                    },
+                    {
                         "id": "live2d",
-                        "label": "Live2D VTuber",
+                        "label": "Live2D VTuber (Hiyori)",
                         "mode": "live2d",
                         "preview": "/static/images/sishin.png",
                         "modelPath": "/static/live2d/sishin/Hiyori.model3.json",

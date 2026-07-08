@@ -1253,6 +1253,7 @@ function playMusic(index) {
             // Tutup playlist setelah memilih
             var menu = document.getElementById('playlistMenu');
             if (menu) menu.classList.remove('active');
+            startBgmServerWatch();
         })
         .catch(function() {
             console.warn('BGM file missing:', bgmList[index]);
@@ -1280,8 +1281,82 @@ function toggleBGM() {
         audio.pause();
         button.classList.remove('playing');
         button.innerHTML = '<i class="fas fa-play"></i>';
+        stopBgmServerWatch();
     }
 }
+
+function stopBGM() {
+    var audio = document.getElementById('bgmAudio');
+    var button = document.getElementById('bgmBtn');
+    if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.removeAttribute('src');
+        try { audio.load(); } catch (e) { /* ignore */ }
+    }
+    if (button) {
+        button.classList.remove('playing');
+        button.innerHTML = '<i class="fas fa-play"></i>';
+    }
+    stopBgmServerWatch();
+}
+
+function stopAllAppAudio() {
+    stopBGM();
+    var nodes = document.querySelectorAll('audio');
+    for (var i = 0; i < nodes.length; i++) {
+        try {
+            nodes[i].pause();
+            nodes[i].currentTime = 0;
+            nodes[i].removeAttribute('src');
+            nodes[i].load();
+        } catch (e) { /* ignore */ }
+    }
+}
+
+function broadcastStopAudio() {
+    try {
+        localStorage.setItem('shiro_ai_stop_audio', String(Date.now()));
+    } catch (e) { /* ignore */ }
+    stopAllAppAudio();
+}
+
+var bgmServerWatchId = null;
+
+function startBgmServerWatch() {
+    stopBgmServerWatch();
+    bgmServerWatchId = setInterval(function() {
+        var audio = document.getElementById('bgmAudio');
+        if (!audio || audio.paused || !audio.getAttribute('src')) {
+            stopBgmServerWatch();
+            return;
+        }
+        fetch('/status', { cache: 'no-store' })
+            .then(function(r) {
+                if (!r.ok) throw new Error('server down');
+            })
+            .catch(function() {
+                broadcastStopAudio();
+            });
+    }, 1200);
+}
+
+function stopBgmServerWatch() {
+    if (bgmServerWatchId) {
+        clearInterval(bgmServerWatchId);
+        bgmServerWatchId = null;
+    }
+}
+
+window.stopBGM = stopBGM;
+window.stopAllAppAudio = stopAllAppAudio;
+window.broadcastStopAudio = broadcastStopAudio;
+
+window.addEventListener('pagehide', broadcastStopAudio);
+window.addEventListener('beforeunload', broadcastStopAudio);
+window.addEventListener('storage', function(e) {
+    if (e.key === 'shiro_ai_stop_audio') broadcastStopAudio();
+});
 
 // ==========================================
 // MEMORY
@@ -1719,6 +1794,13 @@ function initSocket(socketInstance) {
     socket = socketInstance;
     console.log('Socket connected for VTuber');
 
+    var disconnectStopTimer = null;
+
+    socket.on('app_shutdown', function() {
+        console.log('Shiro AI shutdown — menghentikan audio');
+        broadcastStopAudio();
+    });
+
     socket.on('transcript', function(data) {
         if (data.text && typeof addMessage === 'function') {
             addMessage(data.text, 'user');
@@ -1800,6 +1882,10 @@ function initSocket(socketInstance) {
 
     socket.on('connect', function() {
         console.log('Socket reconnected for VTuber');
+        if (disconnectStopTimer) {
+            clearTimeout(disconnectStopTimer);
+            disconnectStopTimer = null;
+        }
         if (vtuberMode) {
             vtuberWaitingForServer = false;
             updateVtuberPttHint();
@@ -1812,6 +1898,12 @@ function initSocket(socketInstance) {
         if (vtuberMode && typeof showNotification === 'function') {
             showNotification(currentCharacter || 'shiro', 'Koneksi terputus, mencoba menyambung kembali...');
         }
+        if (disconnectStopTimer) clearTimeout(disconnectStopTimer);
+        disconnectStopTimer = setTimeout(function() {
+            if (socket && !socket.connected) {
+                broadcastStopAudio();
+            }
+        }, 1000);
     });
 }
 

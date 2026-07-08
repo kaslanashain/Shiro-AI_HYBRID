@@ -10,9 +10,11 @@ from dotenv import load_dotenv
 
 from app import config
 from app.db import (
+    _resolve_user_id,
     muat_fakta, muat_memori, muat_status, simpan_fakta, simpan_memori, simpan_status,
     muat_preferensi, simpan_preferensi, get_last_chat_time, log_event, is_event_triggered_today
 )
+from app.learning import format_learnings_block, schedule_learning
 from app.utils import (
     build_konteks,
     cache_get,
@@ -264,12 +266,12 @@ def _lang_instruction(karakter, input_lang):
         "atau tulisan Jepang, pahami dan balas natural (boleh mix manja JP+ID)."
     )
 
-def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user=""):
+def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user="", user_id=None):
     profile = CHARACTER_PROFILES[karakter]
     input_lang = detect_input_language(pesan_user or konteks)
     mood = _mood_prompt(profile, score)
 
-    pref = muat_preferensi()
+    pref = muat_preferensi(user_id)
     panggilan = pref.get("panggilan", "Kakak Shin")
     topik = pref.get("topik", "")
 
@@ -277,6 +279,7 @@ def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user=""):
     if fakta_list:
         fakta_block = "FAKTA TENTANG USER:\n" + "\n".join(f"- {f}" for f in fakta_list) + "\n"
 
+    learning_block = format_learnings_block(karakter, user_id)
     topik_block = f"TOPIK FAVORIT USER: {topik}\n" if topik else ""
     sibling_block = _build_sibling_context(karakter, pesan_user, score)
 
@@ -285,11 +288,12 @@ def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user=""):
         f"{sibling_block}"
         "ATURAN PERCAKAPAN:\n"
         "- Jawab natural, nyambung dengan topik sebelumnya\n"
-        "- Gunakan riwayat chat di bawah sebagai konteks — jangan ulang hal yang sudah dibahas\n"
+        "- Gunakan riwayat chat dan pembelajaran di bawah — jangan ulang hal yang sudah dibahas\n"
         "- Respons singkat dan cocok untuk obrolan suara (VTuber)\n"
         "- Jangan keluar dari karakter\n"
         "- Jika user menyebut saudaramu, komentari sebagai dirimu sendiri — jangan ganti persona\n\n"
         f"RIWAYAT CHAT TERAKHIR:\n{konteks}\n\n"
+        f"{learning_block}"
         f"{fakta_block}"
         f"{topik_block}"
         f"PANGGILAN USER: {panggilan}\n"
@@ -368,9 +372,10 @@ def _call_llm(messages, stream=False, on_token=None):
 
 def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
     """Siapkan konteks chat — dipakai jawab_shiro & streaming."""
-    _detect_preferences(pesan_user)
+    user_id = _resolve_user_id()
+    _detect_preferences(pesan_user, user_id)
 
-    status = muat_status()
+    status = muat_status(user_id)
     interaksi = status.get("interaksi", 0) + 1
     status["interaksi"] = interaksi
 
@@ -380,12 +385,12 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
     if interaksi % 10 == 0:
         status["level"] = status.get("level", 1) + 1
 
-    simpan_status(status)
-    _maybe_save_fact(pesan_user)
+    simpan_status(status, user_id)
+    _maybe_save_fact(pesan_user, user_id)
 
-    riwayat = muat_memori(karakter=karakter, limit=24)
+    riwayat = muat_memori(user_id=user_id, karakter=karakter, limit=24)
     konteks = build_konteks(riwayat, limit=12)
-    fakta_list = muat_fakta()
+    fakta_list = muat_fakta(user_id)
     cache_key = get_cache_key(pesan_user, konteks, karakter)
 
     cached = cache_get(cache_key)
@@ -397,10 +402,11 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
             "profile": CHARACTER_PROFILES[karakter],
             "cached_result": cached[0],
             "messages": None,
+            "user_id": user_id,
         }
 
     system_prompt = build_system_prompt(
-        karakter, konteks, status.get("affection", 50), fakta_list, pesan_user
+        karakter, konteks, status.get("affection", 50), fakta_list, pesan_user, user_id
     )
     riwayat_llm = riwayat[-18:] if len(riwayat) > 18 else riwayat
     messages = [{"role": "system", "content": system_prompt}] + riwayat_llm + [
@@ -415,6 +421,7 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
         "cached_result": None,
         "messages": messages,
         "cache_key": cache_key,
+        "user_id": user_id,
     }
 
 
@@ -437,7 +444,8 @@ def jawab_shiro_stream(pesan_user, preferred_karakter=None, force_preferred=Fals
         raw = response["message"]["content"]
         result = _parse_model_response(raw, konteks, karakter)
         cache_set(ctx["cache_key"], (result, status))
-        simpan_memori(pesan_user, result["text"], karakter)
+        simpan_memori(pesan_user, result["text"], karakter, ctx.get("user_id"))
+        _trigger_learning(ctx, pesan_user, result, profile)
         return result, muat_status()
     except Exception as exc:
         logger.exception("LLM stream failed: %s", exc)
@@ -483,12 +491,14 @@ def _apply_affection_delta(pesan_user, status):
     status["affection"] = score
     return status
 
-def _maybe_save_fact(pesan_user, user_id=1):
+def _maybe_save_fact(pesan_user, user_id=None):
+    user_id = _resolve_user_id(user_id)
     teks_lower = pesan_user.lower()
     if any(k in teks_lower for k in config.FACT_KEYWORDS):
         simpan_fakta(user_id, pesan_user.strip())
 
-def _detect_preferences(text, user_id=1):
+def _detect_preferences(text, user_id=None):
+    user_id = _resolve_user_id(user_id)
     import re
     match = re.search(r'panggil aku (.+)', text, re.IGNORECASE)
     if match:
@@ -501,6 +511,19 @@ def _detect_preferences(text, user_id=1):
         simpan_preferensi(user_id, topik=topik)
         return True
     return False
+
+
+def _trigger_learning(ctx, pesan_user, result, profile):
+    """Aktifkan pembelajaran background setelah balasan sukses."""
+    is_fallback = result.get("text", "").strip() == profile.get("fallback", "").strip()
+    schedule_learning(
+        pesan_user,
+        result.get("text", ""),
+        ctx["karakter"],
+        ctx.get("user_id"),
+        is_fallback=is_fallback,
+        profile=profile,
+    )
 
 # ============================================================
 # INISIATIF
@@ -723,7 +746,8 @@ def jawab_shiro(pesan_user, preferred_karakter=None, force_preferred=False):
         raw = response["message"]["content"]
         result = _parse_model_response(raw, konteks, karakter)
         cache_set(ctx["cache_key"], (result, status))
-        simpan_memori(pesan_user, result["text"], karakter)
+        simpan_memori(pesan_user, result["text"], karakter, ctx.get("user_id"))
+        _trigger_learning(ctx, pesan_user, result, profile)
         return result, muat_status()
     except Exception as exc:
         logger.exception("LLM chat failed: %s", exc)

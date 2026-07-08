@@ -12,6 +12,56 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
 
+    <!-- Stop BGM otomatis saat tray desktop Keluar (lintas tab browser) -->
+    <script>
+    (function() {
+        function shiroStopAudioOnly() {
+            var nodes = document.querySelectorAll('audio');
+            for (var i = 0; i < nodes.length; i++) {
+                try {
+                    nodes[i].pause();
+                    nodes[i].currentTime = 0;
+                    nodes[i].removeAttribute('src');
+                    nodes[i].load();
+                } catch (e) { /* ignore */ }
+            }
+            var btn = document.getElementById('bgmBtn');
+            if (btn) {
+                btn.classList.remove('playing');
+                btn.innerHTML = '<i class="fas fa-play"></i>';
+            }
+        }
+        function shiroStopAllAudio() {
+            try { localStorage.setItem('shiro_ai_stop_audio', String(Date.now())); } catch (e) { /* ignore */ }
+            shiroStopAudioOnly();
+        }
+        window.__shiroStopAllAudio = shiroStopAllAudio;
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'shiro_ai_stop_audio') shiroStopAudioOnly();
+        });
+        var bgmWatchId = null;
+        function startBgmWatch() {
+            if (bgmWatchId) return;
+            bgmWatchId = setInterval(function() {
+                var a = document.getElementById('bgmAudio');
+                if (!a || a.paused) {
+                    clearInterval(bgmWatchId);
+                    bgmWatchId = null;
+                    return;
+                }
+                fetch('/status', { cache: 'no-store' }).catch(function() {
+                    shiroStopAllAudio();
+                    clearInterval(bgmWatchId);
+                    bgmWatchId = null;
+                });
+            }, 800);
+        }
+        document.addEventListener('play', function(ev) {
+            if (ev.target && ev.target.tagName === 'AUDIO') startBgmWatch();
+        }, true);
+    })();
+    </script>
+
     <!-- ===== STYLE TAMBAHAN (CUACA & KURSOR) ===== -->
     <style>
         .weather-widget {
@@ -568,7 +618,7 @@
 <script src="{{ url_for('static', filename='js/schedule.js') }}"></script>
 <script src="{{ url_for('static', filename='js/vision.js') }}"></script>
 <script src="{{ url_for('static', filename='js/voice-commands.js') }}"></script>
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}?v=20260708"></script>
 <script src="{{ url_for('static', filename='js/story.js') }}"></script>
 <script src="{{ url_for('static', filename='js/premium.js') }}"></script>
 <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
@@ -673,6 +723,10 @@
 
     socket.on('connect', function() {
         console.log('WebSocket connected');
+    });
+
+    socket.on('app_shutdown', function() {
+        if (window.__shiroStopAllAudio) window.__shiroStopAllAudio();
     });
 
     document.addEventListener('DOMContentLoaded', function() {

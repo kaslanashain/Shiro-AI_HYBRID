@@ -7,7 +7,7 @@
 
     var BASE = '/static/images/';
     var catalog = null;
-    var selected = { shiro: 'expressions', sishin: 'expressions' };
+    var selected = { shiro: 'expressions', sishin: 'live2d_custom' };
 
     function storageKey() {
         var uid = (global.currentAuthUser && global.currentAuthUser.user_id) || 'guest';
@@ -86,9 +86,7 @@
     }
 
     function isLive2DMode(char) {
-        var id = getSelectedOutfit(char);
-        if (id === 'live2d') return true;
-        return getOutfitMode(char, id) === 'live2d';
+        return getOutfitMode(char, getSelectedOutfit(char)) === 'live2d';
     }
 
     function getOutfit(char, outfitId) {
@@ -203,6 +201,15 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 catalog = data.outfits || null;
+                ['shiro', 'sishin'].forEach(function(char) {
+                    if (!catalog || !catalog[char]) return;
+                    var valid = catalog[char].some(function(o) { return o.id === selected[char]; });
+                    if (!valid) {
+                        var live2d = catalog[char].find(function(o) { return o.mode === 'live2d'; });
+                        selected[char] = live2d ? live2d.id : catalog[char][0].id;
+                        saveSelection();
+                    }
+                });
                 return catalog;
             })
             .catch(function() {

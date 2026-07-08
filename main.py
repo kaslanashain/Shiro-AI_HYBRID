@@ -6,7 +6,7 @@ import signal
 import time
 import concurrent.futures
 import threading
-from flask import request
+from flask import request, jsonify
 from flask_socketio import SocketIO, emit
 from app import create_app
 from app.chat import jawab_shiro, jawab_shiro_stream
@@ -417,9 +417,50 @@ def handle_audio(data):
 def handle_ping():
     emit("pong", {"time": time.time()})
 
+
+def _emit_shutdown_and_exit():
+    """Notify all clients to stop BGM/audio, then exit the server process."""
+    try:
+        with app.app_context():
+            socketio.emit("app_shutdown", {"reason": "quit"}, namespace="/")
+            socketio.sleep(0.6)
+    except Exception as exc:
+        logger.debug("app_shutdown emit: %s", exc)
+    os._exit(0)
+
+
+@app.route("/api/shutdown", methods=["POST"])
+def api_shutdown():
+    """Local-only: stop audio on clients and shut down server (desktop tray quit)."""
+    remote = (request.remote_addr or "").replace("::ffff:", "")
+    if remote not in ("127.0.0.1", "::1"):
+        return jsonify({"error": "forbidden"}), 403
+    logger.info("Shutdown requested from %s", remote)
+    threading.Thread(target=_emit_shutdown_and_exit, daemon=True).start()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/stop-audio", methods=["POST"])
+def api_stop_audio():
+    """Local-only: tell open browser tabs to stop BGM without killing server."""
+    remote = (request.remote_addr or "").replace("::ffff:", "")
+    if remote not in ("127.0.0.1", "::1"):
+        return jsonify({"error": "forbidden"}), 403
+    try:
+        with app.app_context():
+            socketio.emit("app_shutdown", {"reason": "stop_audio"}, namespace="/")
+    except Exception as exc:
+        logger.debug("stop-audio emit: %s", exc)
+    return jsonify({"ok": True})
+
+
 # ===== SHUTDOWN HANDLER =====
 def signal_handler(sig, frame):
     logger.info("Shutting down gracefully...")
+    try:
+        socketio.emit("app_shutdown", {"reason": "signal"}, namespace="/")
+    except Exception:
+        pass
     socketio.stop()
     sys.exit(0)
 

@@ -138,6 +138,29 @@ def init_db():
             """
         )
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_learnings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL DEFAULT 1,
+                karakter TEXT DEFAULT 'both',
+                category TEXT DEFAULT 'context',
+                content TEXT NOT NULL,
+                source_hash TEXT NOT NULL,
+                confidence REAL DEFAULT 0.5,
+                value_score REAL DEFAULT 0.0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_dedup
+            ON user_learnings (user_id, source_hash);
+            """
+        )
+
         conn.commit()
 
 
@@ -313,6 +336,114 @@ def simpan_preferensi(user_id=None, panggilan=None, topik=None):
                 (topik, user_id),
             )
         conn.commit()
+
+
+def muat_pembelajaran(user_id=None, karakter="shiro", limit=10, min_confidence=0.4):
+    """Muat pembelajaran untuk karakter aktif + yang bersifat 'both'."""
+    user_id = _resolve_user_id(user_id)
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT content, category, confidence, value_score, karakter
+            FROM user_learnings
+            WHERE user_id = ?
+              AND confidence >= ?
+              AND (karakter = 'both' OR karakter = ?)
+            ORDER BY (value_score * confidence) DESC, last_used_at DESC
+            LIMIT ?
+            """,
+            (user_id, min_confidence, karakter, limit),
+        ).fetchall()
+        results = [dict(row) for row in rows]
+        if results:
+            ids_sub = conn.execute(
+                """
+                SELECT id FROM user_learnings
+                WHERE user_id = ?
+                  AND confidence >= ?
+                  AND (karakter = 'both' OR karakter = ?)
+                ORDER BY (value_score * confidence) DESC, last_used_at DESC
+                LIMIT ?
+                """,
+                (user_id, min_confidence, karakter, limit),
+            ).fetchall()
+            if ids_sub:
+                placeholders = ",".join("?" * len(ids_sub))
+                conn.execute(
+                    f"""
+                    UPDATE user_learnings
+                    SET last_used_at = CURRENT_TIMESTAMP
+                    WHERE id IN ({placeholders})
+                    """,
+                    [r["id"] for r in ids_sub],
+                )
+                conn.commit()
+        return results
+
+
+def simpan_pembelajaran(
+    user_id=None,
+    content=None,
+    category="context",
+    karakter="both",
+    source_hash=None,
+    confidence=0.5,
+    value_score=0.0,
+):
+    user_id = _resolve_user_id(user_id)
+    content = (content or "").strip()
+    if not content:
+        return False
+
+    if not source_hash:
+        import hashlib
+        normalized = " ".join(content.lower().split())
+        source_hash = hashlib.md5(normalized.encode("utf-8")).hexdigest()
+
+    with _connect() as conn:
+        existing = conn.execute(
+            """
+            SELECT id, confidence FROM user_learnings
+            WHERE user_id = ? AND source_hash = ?
+            """,
+            (user_id, source_hash),
+        ).fetchone()
+
+        if existing:
+            new_conf = min(1.0, existing["confidence"] + 0.08)
+            conn.execute(
+                """
+                UPDATE user_learnings
+                SET confidence = ?, value_score = MAX(value_score, ?),
+                    last_used_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (new_conf, value_score, existing["id"]),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO user_learnings
+                (user_id, karakter, category, content, source_hash, confidence, value_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (user_id, karakter, category, content, source_hash, confidence, value_score),
+            )
+
+        conn.execute(
+            """
+            DELETE FROM user_learnings
+            WHERE user_id = ? AND id NOT IN (
+                SELECT id FROM user_learnings
+                WHERE user_id = ?
+                ORDER BY (value_score * confidence) DESC, last_used_at DESC
+                LIMIT 120
+            )
+            """,
+            (user_id, user_id),
+        )
+        conn.commit()
+        return True
 
 
 # ============================================================
