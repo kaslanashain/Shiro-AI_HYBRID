@@ -15,7 +15,7 @@ from app.db import _resolve_user_id, muat_status
 from app.story import get_active_story, process_story_action, start_story, STORY_THEMES
 from app.tts import generate_speech, cleanup_old_tts_files
 from app.voice_commands import list_available_apps, process_launch_command
-from app.app_catalog import rescan_catalog, get_add_here_path
+from app.companion_presence import analyze_presence_frame, music_companion_reply
 
 logger = logging.getLogger(__name__)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
@@ -546,6 +546,61 @@ def register_routes(app):
         except Exception as exc:
             logger.exception("Vision analyze failed: %s", exc)
             return jsonify({"error": "Gagal menganalisis gambar"}), 500
+
+    @app.route("/api/companion/presence", methods=["POST"])
+    def api_companion_presence():
+        """Always-on camera frame → in-character presence comment."""
+        try:
+            data = request.get_json(silent=True) or {}
+            payload = data.get("image_base64") or data.get("image")
+            if not payload:
+                return jsonify({"error": "image_base64 required"}), 400
+            image_bytes, mime = decode_base64_image(payload)
+            karakter = (data.get("character_name") or data.get("karakter") or "shiro").strip().lower()
+            if karakter not in ("shiro", "sishin"):
+                karakter = "shiro"
+            status = muat_status()
+            affection = data.get("affection_level", status.get("affection", 50))
+            result = analyze_presence_frame(
+                image_bytes, mime, character_name=karakter, affection_level=affection
+            )
+            return jsonify({
+                "reply": result.get("text", ""),
+                "suara": result.get("suara", ""),
+                "karakter": result.get("karakter", karakter),
+                "vision_ok": result.get("vision_ok", False),
+                "status": status,
+            })
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            logger.exception("Companion presence failed: %s", exc)
+            return jsonify({"error": "Gagal analisis presence"}), 500
+
+    @app.route("/api/companion/music", methods=["POST"])
+    def api_companion_music():
+        """Music opinion or sing-along while BGM plays."""
+        data = request.get_json(silent=True) or {}
+        karakter = (data.get("karakter") or "shiro").strip().lower()
+        if karakter not in ("shiro", "sishin"):
+            karakter = "shiro"
+        track = (data.get("track") or data.get("track_name") or "lagu ini").strip()
+        mode = (data.get("mode") or "opinion").strip().lower()
+        if mode not in ("opinion", "sing"):
+            mode = "opinion"
+        try:
+            jawaban_data, status = music_companion_reply(track, karakter, mode)
+            return jsonify({
+                "reply": jawaban_data.get("text", ""),
+                "suara": jawaban_data.get("suara", jawaban_data.get("text", "")),
+                "karakter": jawaban_data.get("karakter", karakter),
+                "mode": mode,
+                "track": track,
+                "status": status,
+            })
+        except Exception as exc:
+            logger.exception("Companion music failed: %s", exc)
+            return jsonify({"error": "Gagal merespons musik"}), 500
 
     @app.route("/voice", methods=["POST"])
     def voice():

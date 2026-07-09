@@ -1,0 +1,22 @@
+/* Companion+ mode — Laplace-style presence chip */
+.companion-presence-active {
+    color: rgba(255, 200, 140, 0.95) !important;
+    text-shadow: 0 0 12px rgba(255, 150, 200, 0.35);
+    transition: color 0.4s ease;
+}
+
+.action-btn.btn-companion-plus.active {
+    background: linear-gradient(135deg, rgba(255, 120, 180, 0.28), rgba(140, 120, 255, 0.22));
+    border-color: rgba(255, 180, 220, 0.45);
+    box-shadow: 0 0 20px rgba(255, 107, 138, 0.25);
+}
+
+.companion-hidden-capture {
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: -1;
+}

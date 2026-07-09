@@ -343,6 +343,16 @@
                 document.body.style.opacity = '0.3';
             }
         });
+
+        var cmpLink = $('deskCompanionToggle');
+        if (cmpLink) {
+            cmpLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (global.CompanionMode && typeof CompanionMode.toggle === 'function') {
+                    CompanionMode.toggle();
+                }
+            });
+        }
     }
 
     function init() {

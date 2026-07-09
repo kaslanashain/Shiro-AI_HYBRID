@@ -405,6 +405,7 @@ async function putarAudio(teks, karakter) {
             audioPlayer.src = '';
         }
         audioPlayer = new Audio(url);
+        window.audioPlayer = audioPlayer;
         if (typeof startLive2DLipSync === 'function') startLive2DLipSync(audioPlayer);
         audioPlayer.play();
 

@@ -677,6 +677,82 @@
         }
     }
 
+    var beatDanceTimer = null;
+    var beatAnalyser = null;
+    var beatAudioCtx = null;
+    var beatBaseY = 0;
+
+    function stopBeatDanceInternal() {
+        if (beatDanceTimer) {
+            clearInterval(beatDanceTimer);
+            beatDanceTimer = null;
+        }
+        if (beatAnalyser && beatAudioCtx) {
+            try { beatAudioCtx.close(); } catch (e) { /* ignore */ }
+        }
+        beatAnalyser = null;
+        beatAudioCtx = null;
+        if (live2dModel) {
+            live2dModel.y = beatBaseY;
+            live2dModel.angle = 0;
+        }
+    }
+
+    global.startLive2DBeatDance = function(audioElement) {
+        stopBeatDanceInternal();
+        if (!live2dModel || !audioElement) return;
+        beatBaseY = live2dModel.y || 0;
+        var data = null;
+        var analyser = null;
+        if (global.AudioContext) {
+            try {
+                beatAudioCtx = new (global.AudioContext || global.webkitAudioContext)();
+                var source = beatAudioCtx.createMediaElementSource(audioElement);
+                analyser = beatAudioCtx.createAnalyser();
+                analyser.fftSize = 512;
+                source.connect(analyser);
+                analyser.connect(beatAudioCtx.destination);
+                beatAnalyser = analyser;
+                data = new Uint8Array(analyser.frequencyBinCount);
+            } catch (e) {
+                console.debug('[Live2D] beat dance analyser fallback:', e);
+            }
+        }
+        var phase = 0;
+        var lastMotion = 0;
+        beatDanceTimer = setInterval(function() {
+            if (!live2dModel) return;
+            var bass = 0.25;
+            if (analyser && data) {
+                analyser.getByteFrequencyData(data);
+                var sum = 0;
+                var count = Math.min(12, data.length);
+                for (var i = 0; i < count; i++) sum += data[i];
+                bass = sum / count / 255;
+            } else {
+                phase += 0.08;
+                bass = Math.abs(Math.sin(phase)) * 0.55 + 0.15;
+            }
+            live2dModel.y = beatBaseY - bass * 14;
+            live2dModel.angle = (bass - 0.3) * 0.12;
+            if (bass > 0.55 && Date.now() - lastMotion > 2400) {
+                lastMotion = Date.now();
+                if (typeof live2dModel.motion === 'function') {
+                    live2dModel.motion('tap').catch(function() {
+                        live2dModel.motion('Tap').catch(function() {
+                            live2dModel.motion('idle').catch(function() {});
+                        });
+                    });
+                }
+            }
+        }, 90);
+    };
+
+    global.stopLive2DBeatDance = function() {
+        stopBeatDanceInternal();
+        if (live2dModel) startIdleMotion(live2dModel);
+    };
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', hookCharacterSwitch);
     } else {

@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/premium-cursor.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/wa-call.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/companion-mode.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
@@ -252,6 +253,11 @@
                 onclick="toggleVoiceCommands()" title="Voice Command — buka aplikasi via suara (Shiro & Sishin)">
                 <i class="fas fa-terminal"></i>
                 <span>Voice ON</span>
+            </button>
+            <button type="button" class="action-btn btn-companion-plus" id="btnCompanionPlus"
+                onclick="toggleCompanionPlus()" title="Companion+ — lihat kamu, reaksi musik, nyanyi, obrol duplex">
+                <i class="fas fa-robot"></i>
+                <span>Companion</span>
             </button>
         </div>
 
@@ -546,6 +552,10 @@
 </div>
 
 <audio id="bgmAudio" loop preload="auto" aria-hidden="true"></audio>
+<div class="companion-hidden-capture" aria-hidden="true">
+    <video id="companionPresenceVideo" autoplay muted playsinline></video>
+    <canvas id="companionPresenceCanvas"></canvas>
+</div>
 <div id="vtuberSubtitle" class="vtuber-subtitle"></div>
 <div id="vtuberPttHint" class="vtuber-ptt-hint">Tahan <kbd>Space</kbd> saat bicara (Indonesia / Jepang)</div>
 
@@ -625,6 +635,7 @@
 <script>window.PIXI = window.PIXI || PIXI;</script>
 <script src="{{ url_for('static', filename='vendor/live2d/cubism4.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/live2d.js') }}"></script>
+<script src="{{ url_for('static', filename='js/companion-mode.js') }}"></script>
 
 <!-- ===== TAMBAHAN SCRIPT: TANGGAL (cuaca di-handle main.js) ===== -->
 <script>

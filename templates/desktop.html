@@ -36,7 +36,12 @@
         <button type="button" id="deskSendBtn" class="desk-btn" title="Kirim"><i class="fas fa-paper-plane"></i></button>
         <button type="button" id="deskMicBtn" class="desk-btn desk-mic" title="Tahan untuk bicara"><i class="fas fa-microphone"></i></button>
     </div>
-    <p class="desk-hint">Space = bicara · Enter = kirim</p>
+    <p class="desk-hint">Space = bicara · Enter = kirim · <a href="#" id="deskCompanionToggle" style="color:rgba(255,200,140,0.7);">Companion+</a></p>
+</div>
+
+<div class="companion-hidden-capture" aria-hidden="true">
+    <video id="companionPresenceVideo" autoplay muted playsinline></video>
+    <canvas id="companionPresenceCanvas"></canvas>
 </div>
 
 <script src="{{ url_for('static', filename='js/core/character-state.js') }}"></script>
@@ -47,6 +52,7 @@
 <script>window.PIXI = window.PIXI || PIXI;</script>
 <script src="{{ url_for('static', filename='vendor/live2d/cubism4.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/live2d.js') }}"></script>
+<script src="{{ url_for('static', filename='js/companion-mode.js') }}"></script>
 <script src="{{ url_for('static', filename='js/desktop.js') }}"></script>
 </body>
 </html>
