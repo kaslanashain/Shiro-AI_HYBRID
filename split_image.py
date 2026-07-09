@@ -7,8 +7,8 @@ import os
 # ==========================================
 # KONFIGURASI
 # ==========================================
-# Ganti dengan nama file gambar Anda
-image_path = "static/images/gambar_utama.jpeg"  # ← GANTI NAMA FILE!
+# Ganti dengan nama file gambar Anda (taruh di static/images/)
+image_path = "static/images/gambar_sumber.jpeg"  # opsional — untuk split manual
 
 output_dir = "static/images/"
 
