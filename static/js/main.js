@@ -505,6 +505,10 @@ function syncCharacterUI(char, options) {
     var chatName = document.getElementById('chatCharName');
     if (chatName) chatName.textContent = char === 'shiro' ? 'Shiro' : 'Sishin';
 
+    if (window.WowUI && typeof WowUI.onCharacterChange === 'function') {
+        WowUI.onCharacterChange(char);
+    }
+
     if (!options.skipState) {
         if (window.CharacterState) {
             CharacterState.set(char);
@@ -656,6 +660,9 @@ async function refreshStatus() {
 function updateStatusBar(status) {
     if (!status) return;
     setAffectionScore(status.affection);
+    if (window.WowUI && typeof WowUI.onStatusUpdate === 'function') {
+        WowUI.onStatusUpdate(status);
+    }
     if (!statusText) return;
     const score = status.affection != null ? status.affection : getActiveAffection();
     const level = status.level || 1;

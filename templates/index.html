@@ -6,6 +6,7 @@
     <title>Shiro AI · Companion</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/premium.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/wow-ui.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/wa-call.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
@@ -149,6 +150,11 @@
     <div class="bg-anime">
         <div id="bgLayer" class="bg-layer night"></div>
         <div class="bg-particles"></div>
+        <div id="ambientOrbs" class="ambient-orbs" aria-hidden="true">
+            <div class="ambient-orb orb-a"></div>
+            <div class="ambient-orb orb-b"></div>
+            <div class="ambient-orb orb-c"></div>
+        </div>
         <div class="bg-overlay"></div>
         <div id="sunRay" class="sun-ray"></div>
         <div id="glintEffect" class="glint-container"></div>
@@ -188,40 +194,49 @@
         </header>
 
         <section class="character-section">
-            <div class="avatar-container">
-                <div id="live2dCanvas" class="live2d-container"></div>
-                <div id="avatarGlow" class="avatar-glow shiro-glow"></div>
-                <div id="avatarRing" class="avatar-ring shiro-ring"></div>
-                <img id="homeAvatar" class="avatar shiro-mode" src="{{ url_for('static', filename='images/shiro.png') }}" alt="Avatar" title="Ketuk untuk chat">
-                <div class="blink-overlay" id="blinkOverlay"></div>
-                <div class="switch-container">
-                    <button id="btnShiro" class="switch-btn active" onclick="switchCharacter('shiro')" title="Shiro">
-                        <img src="{{ url_for('static', filename='images/shiro.png') }}" alt="Shiro">
-                    </button>
-                    <button id="btnSishin" class="switch-btn" onclick="switchCharacter('sishin')" title="Sishin">
-                        <img src="{{ url_for('static', filename='images/sishin.png') }}" alt="Sishin">
-                    </button>
+            <div class="character-glass wow-enter">
+                <div class="avatar-orbit" aria-hidden="true">
+                    <span class="orbit-dot od1"></span>
+                    <span class="orbit-dot od2"></span>
+                    <span class="orbit-dot od3"></span>
                 </div>
-            </div>
-
-            <h1 id="homeCharName" class="char-name">Shiro</h1>
-            <p id="homeCharSub" class="char-title">Onee-san yang manja</p>
-
-            <div class="status-row">
-                <div class="status-item"><i class="fas fa-heart"></i> Afeksi <span id="affectionDisplay">50</span>%</div>
-                <div class="status-item"><i class="fas fa-star"></i> Lv. <span id="levelDisplay">1</span></div>
-            </div>
-
-            <div class="hp-section">
-                <div class="hp-track">
-                    <div id="hpBar" class="hp-fill" style="width:50%"><div class="hp-shine"></div></div>
+                <div class="avatar-container">
+                    <div id="live2dCanvas" class="live2d-container"></div>
+                    <div id="avatarGlow" class="avatar-glow shiro-glow"></div>
+                    <div id="avatarRing" class="avatar-ring shiro-ring"></div>
+                    <img id="homeAvatar" class="avatar shiro-mode" src="{{ url_for('static', filename='images/shiro.png') }}" alt="Avatar" title="Ketuk untuk chat">
+                    <div class="blink-overlay" id="blinkOverlay"></div>
+                    <div class="switch-container">
+                        <button id="btnShiro" class="switch-btn active" onclick="switchCharacter('shiro')" title="Shiro">
+                            <img src="{{ url_for('static', filename='images/shiro.png') }}" alt="Shiro">
+                        </button>
+                        <button id="btnSishin" class="switch-btn" onclick="switchCharacter('sishin')" title="Sishin">
+                            <img src="{{ url_for('static', filename='images/sishin.png') }}" alt="Sishin">
+                        </button>
+                    </div>
                 </div>
-                <span class="hp-label">Afeksi <span id="hpPercent">50</span>%</span>
-            </div>
 
-            <div class="quote-box">
-                <i class="fas fa-quote-left"></i>
-                <span class="quote-text">Hari ini akan indah, seperti senyummu.</span>
+                <h1 id="homeCharName" class="char-name">Shiro</h1>
+                <p id="homeCharSub" class="char-title">Onee-san yang manja</p>
+
+                <div id="moodChip" class="mood-chip"><span class="mood-emoji">😊</span><span class="mood-label">Bahagia</span></div>
+
+                <div class="status-row">
+                    <div class="status-item"><i class="fas fa-heart"></i> Afeksi <span id="affectionDisplay">50</span>%</div>
+                    <div class="status-item"><i class="fas fa-star"></i> Lv. <span id="levelDisplay">1</span></div>
+                </div>
+
+                <div class="hp-section">
+                    <div class="hp-track">
+                        <div id="hpBar" class="hp-fill" style="width:50%"><div class="hp-shine"></div></div>
+                    </div>
+                    <span class="hp-label">Afeksi <span id="hpPercent">50</span>%</span>
+                </div>
+
+                <div class="quote-box">
+                    <i class="fas fa-quote-left"></i>
+                    <span class="quote-text">Hari ini akan indah, seperti senyummu.</span>
+                </div>
             </div>
         </section>
 
@@ -609,6 +624,7 @@
 <script src="{{ url_for('static', filename='js/core/affection-engine.js') }}"></script>
 <script src="{{ url_for('static', filename='js/core/system-awareness.js') }}"></script>
 <script src="{{ url_for('static', filename='js/core/asset-manager.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wow-ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 <script src="{{ url_for('static', filename='js/wa-call.js') }}"></script>
 <script src="{{ url_for('static', filename='js/random-events.js') }}"></script>
@@ -618,7 +634,7 @@
 <script src="{{ url_for('static', filename='js/schedule.js') }}"></script>
 <script src="{{ url_for('static', filename='js/vision.js') }}"></script>
 <script src="{{ url_for('static', filename='js/voice-commands.js') }}"></script>
-<script src="{{ url_for('static', filename='js/main.js') }}?v=20260711"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}?v=20260712"></script>
 <script src="{{ url_for('static', filename='js/story.js') }}"></script>
 <script src="{{ url_for('static', filename='js/premium.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/live2d/live2dcubismcore.min.js') }}"></script>
