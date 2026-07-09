@@ -11,14 +11,15 @@
 
     function loadStored() {
         try {
-            var saved = localStorage.getItem(STORAGE_KEY);
+            /* Sesi baru selalu mulai dari Shiro; pilihan karakter bertahan per tab */
+            var saved = sessionStorage.getItem(STORAGE_KEY);
             if (saved === 'sishin' || saved === 'shiro') current = saved;
         } catch (e) { /* ignore */ }
     }
 
     function saveStored(char) {
         try {
-            localStorage.setItem(STORAGE_KEY, char);
+            sessionStorage.setItem(STORAGE_KEY, char);
         } catch (e) { /* ignore */ }
     }
 

@@ -1,0 +1,10 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "Sishin_l2d_versi_baru.moc3",
+		"Textures": [
+			"Sishin_l2d_versi_baru.2048/texture_00.png"
+		],
+		"DisplayInfo": "Sishin_l2d_versi_baru.cdi3.json"
+	}
+}

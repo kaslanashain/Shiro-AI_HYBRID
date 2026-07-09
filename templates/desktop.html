@@ -42,10 +42,10 @@
 <script src="{{ url_for('static', filename='js/core/character-state.js') }}"></script>
 <script src="{{ url_for('static', filename='js/core/asset-manager.js') }}"></script>
 <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
-<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/live2d/live2dcubismcore.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/live2d/pixi.min.js') }}"></script>
 <script>window.PIXI = window.PIXI || PIXI;</script>
-<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/live2d/cubism4.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/live2d.js') }}"></script>
 <script src="{{ url_for('static', filename='js/desktop.js') }}"></script>
 </body>

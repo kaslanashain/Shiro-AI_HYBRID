@@ -48,7 +48,8 @@ Gunakan folder PNG di sini sebagai **panduan** nama & urutan drag.
 2. **Mesh** tiap part (Model → Auto Mesh, density Medium)
 3. **Deformer Kepala** → bind mata & mulut
 4. Parameter: `ParamEyeLOpen`, `ParamEyeROpen`, `ParamMouthOpenY`
-5. Export ke: `F:\Shiro_AI_V2\static\live2d\sishin\`
+5. Export ke: `F:\Shiro_AI_V2\static\live2d\custom\sishin\`
+6. Jalankan: `py scripts/install_custom_l2d.py`
 
 ---
 

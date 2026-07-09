@@ -122,8 +122,6 @@ function initSystemAwarenessWiring() {
         }
         if (typeof updateVtuberPttHint === 'function') updateVtuberPttHint();
     });
-
-    applyHomeAvatarExpression(CharacterState.get(), AffectionEngine.getScore());
 }
 
 window.setAffectionScore = setAffectionScore;
@@ -441,9 +439,9 @@ async function putarAudio(teks, karakter) {
 // ==========================================
 // SWITCH CHARACTER (DIPERBAIKI - MEMPERTAHANKAN IDLE)
 // ==========================================
-function switchCharacter(char) {
+function syncCharacterUI(char, options) {
+    options = options || {};
     if (window.CharacterState) char = CharacterState.normalize(char);
-    if (char === getActiveCharacter()) return;
 
     var avatar = document.getElementById('homeAvatar');
     var name = document.getElementById('homeCharName');
@@ -464,7 +462,7 @@ function switchCharacter(char) {
             }
         }
         if (name) name.textContent = 'Shiro';
-        if (subtitle) subtitle.textContent = 'Onee-san yang manja';
+        if (subtitle && !options.keepSubtitle) subtitle.textContent = 'Onee-san yang manja';
         if (btnShiro) btnShiro.classList.add('active');
         if (btnSishin) btnSishin.classList.remove('active');
         if (ring) ring.className = 'avatar-ring shiro-ring';
@@ -488,29 +486,54 @@ function switchCharacter(char) {
             }
         }
         if (name) name.textContent = 'Sishin';
-        if (subtitle) subtitle.textContent = 'Adik kecil yang imut';
+        if (subtitle && !options.keepSubtitle) subtitle.textContent = 'Adik kecil yang imut';
         if (btnSishin) btnSishin.classList.add('active');
         if (btnShiro) btnShiro.classList.remove('active');
         if (ring) ring.className = 'avatar-ring sishin-ring';
         if (glow) glow.className = 'avatar-glow sishin-glow';
         if (status) status.textContent = 'Afeksi ' + getActiveAffection() + '%';
-        var cameraTitle = document.getElementById('cameraTitle');
+        cameraTitle = document.getElementById('cameraTitle');
         if (cameraTitle) cameraTitle.textContent = 'Kirim Foto untuk Sishin';
-        var voiceTitle = document.getElementById('voiceTitle');
+        voiceTitle = document.getElementById('voiceTitle');
         if (voiceTitle) voiceTitle.textContent = 'Rekam Suara untuk Sishin';
-        var sawerTitle = document.getElementById('sawerTitle');
+        sawerTitle = document.getElementById('sawerTitle');
         if (sawerTitle) sawerTitle.textContent = 'Sawer Sishin';
-        var sawerDesc = document.getElementById('sawerDesc');
+        sawerDesc = document.getElementById('sawerDesc');
         if (sawerDesc) sawerDesc.textContent = 'Dukung Sishin dengan saweran virtual.';
     }
 
-    if (window.CharacterState) {
-        CharacterState.set(char);
-    } else {
-        window.currentCharacter = char;
-    }
     var chatName = document.getElementById('chatCharName');
     if (chatName) chatName.textContent = char === 'shiro' ? 'Shiro' : 'Sishin';
+
+    if (!options.skipState) {
+        if (window.CharacterState) {
+            CharacterState.set(char);
+        } else {
+            window.currentCharacter = char;
+        }
+    }
+}
+
+function bootHomeCharacter() {
+    var char = getActiveCharacter();
+    syncCharacterUI(char, { skipState: true, force: true });
+}
+
+function bootHomeLive2D() {
+    if (typeof window.initLive2D === 'function') {
+        window.initLive2D();
+    }
+}
+
+window.syncCharacterUI = syncCharacterUI;
+window.bootHomeCharacter = bootHomeCharacter;
+window.bootHomeLive2D = bootHomeLive2D;
+
+function switchCharacter(char) {
+    if (window.CharacterState) char = CharacterState.normalize(char);
+    if (char === getActiveCharacter()) return;
+
+    syncCharacterUI(char);
     console.log('Switched to:', char);
 
     if (typeof vtuberMode !== 'undefined' && vtuberMode) {
@@ -540,8 +563,9 @@ function switchCharacter(char) {
 
     // Fallback: pastikan idle tetap ada setelah switch
     setTimeout(function() {
-        if (avatar && !avatar.classList.contains('speaking')) {
-            avatar.classList.add('idle');
+        var avatarEl = document.getElementById('homeAvatar');
+        if (avatarEl && !avatarEl.classList.contains('speaking')) {
+            avatarEl.classList.add('idle');
         }
     }, 50);
 }
@@ -838,6 +862,9 @@ function closeChat() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM siap, memasang event listener...');
 
+    /* Sinkron UI karakter segera — jangan tunggu API wardrobe */
+    if (typeof bootHomeCharacter === 'function') bootHomeCharacter();
+
     var sendBtn = document.getElementById('sendBtn');
     if (sendBtn) {
         sendBtn.addEventListener('click', function(e) {
@@ -913,6 +940,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== AKHIR TAMBAHAN =====
 
     refreshStatus();
+    if (window.AssetManager && AssetManager.ensureCatalog) {
+        AssetManager.ensureCatalog().finally(function() {
+            if (typeof bootHomeLive2D === 'function') bootHomeLive2D();
+        });
+    }
     console.log('Shiro AI initialized.');
 });
 

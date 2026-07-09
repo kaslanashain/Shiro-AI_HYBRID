@@ -12,6 +12,9 @@ voicevox_engine/
 *.gguf
 test_voicevox.wav
 debug_audio/
+last_affection.txt
+_test_gguf.modelfile
+static/live2d/_archive/
 # Virtual Environment
 venv/
 

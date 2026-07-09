@@ -197,85 +197,99 @@ def register_routes(app):
     @app.route("/api/wardrobe/catalog", methods=["GET"])
     def wardrobe_catalog():
         """Static outfit catalog for frontend asset manager."""
+        static_root = os.path.join(app.root_path, "static", "live2d")
+
+        def custom_live2d_outfit(char, label):
+            custom_dir = os.path.join(static_root, "custom", char)
+            if not os.path.isdir(custom_dir):
+                return None
+            preferred = "Sishin_l2d.model3.json" if char == "sishin" else "Shiro_l2d.model3.json"
+            candidates = [preferred]
+            for name in sorted(os.listdir(custom_dir)):
+                if name.endswith(".model3.json") and name not in candidates:
+                    candidates.append(name)
+            for name in candidates:
+                full = os.path.join(custom_dir, name)
+                if os.path.isfile(full):
+                    preview = "/static/images/sishin.png" if char == "sishin" else "/static/images/shiro.png"
+                    return {
+                        "id": "live2d_custom",
+                        "label": label,
+                        "mode": "live2d",
+                        "preview": preview,
+                        "modelPath": f"/static/live2d/custom/{char}/{name}",
+                    }
+            return None
+
+        shiro_outfits = [
+            {
+                "id": "expressions",
+                "label": "Ekspresi PNG (Default)",
+                "mode": "png",
+                "preview": "/static/images/expressions/shiro_happy.png",
+                "folder": "expressions",
+                "files": {
+                    "happy": "shiro_happy.png",
+                    "sad": "shiro_sad.png",
+                    "blush": "shiro_blush.png",
+                    "fallback": "shiro.png",
+                },
+            },
+            {
+                "id": "live2d_haru",
+                "label": "Haru (Live2D)",
+                "mode": "live2d",
+                "preview": "/static/images/shiro.png",
+                "modelPath": "/static/live2d/shiro/Haru.model3.json",
+            },
+            {
+                "id": "classic",
+                "label": "Klasik",
+                "mode": "png",
+                "preview": "/static/images/shiro.png",
+                "folder": "root",
+                "files": {
+                    "happy": "shiro.png",
+                    "sad": "shiro.png",
+                    "blush": "expressions/shiro_blush.png",
+                    "fallback": "shiro.png",
+                },
+            },
+        ]
+        custom_shiro = custom_live2d_outfit("shiro", "Custom (Upload)")
+        if custom_shiro:
+            shiro_outfits.append(custom_shiro)
+
+        sishin_outfits = [
+            {
+                "id": "expressions",
+                "label": "Ekspresi PNG (Default)",
+                "mode": "png",
+                "preview": "/static/images/expressions/sishin_normal.png",
+                "folder": "expressions",
+                "files": {
+                    "happy": "sishin_normal.png",
+                    "sad": "sishin_sad.png",
+                    "blush": "sishin_blush.png",
+                    "fallback": "sishin.png",
+                },
+            },
+            {
+                "id": "live2d_hiyori",
+                "label": "Hiyori (Live2D)",
+                "mode": "live2d",
+                "preview": "/static/images/sishin.png",
+                "modelPath": "/static/live2d/samples/hiyori/Hiyori.model3.json",
+            },
+        ]
+        custom_sishin = custom_live2d_outfit("sishin", "Custom (Upload)")
+        if custom_sishin:
+            sishin_outfits.append(custom_sishin)
+
         return jsonify({
             "outfits": {
-                "shiro": [
-                    {
-                        "id": "live2d",
-                        "label": "Live2D VTuber",
-                        "mode": "live2d",
-                        "preview": "/static/images/shiro.png",
-                        "modelPath": "/static/live2d/shiro/Haru.model3.json",
-                    },
-                    {
-                        "id": "expressions",
-                        "label": "Ekspresi (Default)",
-                        "mode": "png",
-                        "preview": "/static/images/expressions/shiro_happy.png",
-                        "folder": "expressions",
-                        "files": {
-                            "happy": "shiro_happy.png",
-                            "sad": "shiro_sad.png",
-                            "blush": "shiro_blush.png",
-                            "fallback": "shiro.png",
-                        },
-                    },
-                    {
-                        "id": "classic",
-                        "label": "Klasik",
-                        "mode": "png",
-                        "preview": "/static/images/shiro.png",
-                        "folder": "root",
-                        "files": {
-                            "happy": "shiro.png",
-                            "sad": "shiro.png",
-                            "blush": "expressions/shiro_blush.png",
-                            "fallback": "shiro.png",
-                        },
-                    },
-                ],
-                "sishin": [
-                    {
-                        "id": "live2d_custom",
-                        "label": "Live2D Sishin (Original)",
-                        "mode": "live2d",
-                        "preview": "/static/images/sishin.png",
-                        "modelPath": "/static/live2d/sishin_custom/Sishin_l2d.model3.json",
-                    },
-                    {
-                        "id": "live2d",
-                        "label": "Live2D VTuber (Hiyori)",
-                        "mode": "live2d",
-                        "preview": "/static/images/sishin.png",
-                        "modelPath": "/static/live2d/sishin/Hiyori.model3.json",
-                    },
-                    {
-                        "id": "expressions",
-                        "label": "Ekspresi (Default)",
-                        "mode": "png",
-                        "preview": "/static/images/expressions/sishin_normal.png",
-                        "folder": "expressions",
-                        "files": {
-                            "happy": "sishin_normal.png",
-                            "sad": "sishin_sad.png",
-                            "blush": "sishin_blush.png",
-                            "fallback": "sishin.png",
-                        },
-                    },
-                    {
-                        "id": "classic",
-                        "label": "Klasik",
-                        "mode": "png",
-                        "preview": "/static/images/sishin.png",
-                        "folder": "root",
-                        "files": {
-                            "happy": "sishin.png",
-                            "sad": "sishin.png",
-                            "blush": "expressions/sishin_blush.png",
-                            "fallback": "sishin.png",
-                        },
-                    },
-                ],
+                "shiro": shiro_outfits,
+                "sishin": sishin_outfits,
             }
         })
 

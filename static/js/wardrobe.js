@@ -130,7 +130,7 @@
     global.switchWardrobeTab = switchWardrobeTab;
 
     document.addEventListener('DOMContentLoaded', function() {
-        if (global.AssetManager) AssetManager.fetchCatalog();
+        if (global.AssetManager && AssetManager.ensureCatalog) AssetManager.ensureCatalog();
         if (global.CharacterState) {
             CharacterState.onChange(function(char) {
                 var modal = document.getElementById('wardrobeModal');

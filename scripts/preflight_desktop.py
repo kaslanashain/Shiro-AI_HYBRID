@@ -91,9 +91,27 @@ def main() -> int:
     _report_gguf()
     _ollama_running()
     _ensure_offline_models()
+    _check_live2d_assets()
 
     print("[preflight] Siap — meluncurkan desktop companion")
     return 0
+
+
+def _check_live2d_assets() -> None:
+    vendor = os.path.join(ROOT, "static", "vendor", "live2d", "pixi.min.js")
+    haru = os.path.join(ROOT, "static", "live2d", "shiro", "Haru.model3.json")
+    hiyori = os.path.join(ROOT, "static", "live2d", "samples", "hiyori", "Hiyori.model3.json")
+    missing = []
+    if not os.path.isfile(vendor):
+        missing.append("vendor Live2D (pixi.min.js)")
+    if not os.path.isfile(haru):
+        missing.append("sample Haru")
+    if not os.path.isfile(hiyori):
+        missing.append("sample Hiyori")
+    if missing:
+        print(f"[preflight] Live2D: {', '.join(missing)} — jalankan: py scripts/setup_live2d_layout.py")
+    else:
+        print("[preflight] Live2D OK (Haru/Shiro, Hiyori/Sishin, vendor offline)")
 
 
 if __name__ == "__main__":

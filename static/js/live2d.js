@@ -7,8 +7,7 @@
 
     var MODEL_PATHS = {
         shiro: '/static/live2d/shiro/Haru.model3.json',
-        sishin: '/static/live2d/sishin_custom/Sishin_l2d.model3.json',
-        sishin_placeholder: '/static/live2d/sishin/Hiyori.model3.json'
+        sishin: '/static/live2d/samples/hiyori/Hiyori.model3.json'
     };
 
     var FALLBACK_PNG = {
@@ -103,25 +102,40 @@
         }
     }
 
+    function resetLive2DStatus() {
+        var sub = document.getElementById('homeCharSub');
+        if (!sub) return;
+        var char = normalizeChar(getActiveCharacter());
+        sub.textContent = char === 'sishin' ? 'Adik kecil yang imut' : 'Onee-san yang manja';
+        sub.style.color = '';
+        delete sub.dataset.live2dPrev;
+    }
+
     function showLive2DStatus(message, isError) {
         var sub = document.getElementById('homeCharSub');
         if (!sub || !message) return;
         if (!sub.dataset.live2dPrev) sub.dataset.live2dPrev = sub.textContent;
         sub.textContent = message;
         sub.style.color = isError ? '#ff8a9b' : 'rgba(255,255,255,0.45)';
-        if (!isError) {
+        if (isError) {
             setTimeout(function() {
-                if (sub.dataset.live2dPrev) sub.textContent = sub.dataset.live2dPrev;
-                sub.style.color = '';
-            }, 3200);
+                resetLive2DStatus();
+            }, 4200);
+            return;
         }
+        setTimeout(function() {
+            resetLive2DStatus();
+        }, 3200);
     }
 
     function ensureLive2DEngine() {
         var Live2DModel = getLive2DModelClass();
         if (typeof global.PIXI === 'undefined' || !Live2DModel) {
             var missing = typeof global.PIXI === 'undefined' ? 'PixiJS' : 'Live2DModel';
-            showLive2DStatus('Live2D gagal: ' + missing + ' tidak termuat. Refresh (Ctrl+Shift+R).', true);
+            showLive2DStatus('Live2D tidak tersedia (' + missing + '). Pakai ekspresi PNG.', true);
+            if (global.AssetManager && AssetManager.revertLive2DToExpressions) {
+                AssetManager.revertLive2DToExpressions(getActiveCharacter());
+            }
             return Promise.reject(new Error('Live2D SDK not loaded (' + missing + ')'));
         }
 
@@ -143,8 +157,6 @@
                 engineReady = false;
                 container.innerHTML = '';
             }
-
-            prepLive2DLayout();
 
             var cw = container.clientWidth || 320;
             var ch = container.clientHeight || 400;
@@ -468,7 +480,6 @@
         var token = ++loadToken;
 
         destroyLive2DModel();
-        prepLive2DLayout();
 
         return ensureLive2DEngine().then(function() {
             if (token !== loadToken) return false;
@@ -505,10 +516,15 @@
             })
             .catch(function(err) {
                 console.error('[Live2D] load failed —', err && err.message ? err.message : err);
-                showLive2DStatus('Live2D gagal dimuat. Cek internet lalu refresh.', true);
+                showLive2DStatus('Live2D gagal dimuat — pakai ekspresi PNG.', true);
                 if (token === loadToken) {
                     destroyLive2DModel();
-                    applyPngFallback(karakter);
+                    if (global.AssetManager && AssetManager.revertLive2DToExpressions) {
+                        AssetManager.revertLive2DToExpressions(karakter);
+                    } else {
+                        resetLive2DStatus();
+                        applyPngFallback(karakter);
+                    }
                 }
                 return false;
             });
@@ -600,7 +616,12 @@
             .catch(function(err) {
                 console.warn('[Live2D] Wardrobe activation failed:', err);
                 wardrobeLive2DMode = false;
-                applyPngFallback(char);
+                if (global.AssetManager && AssetManager.revertLive2DToExpressions) {
+                    AssetManager.revertLive2DToExpressions(char);
+                } else {
+                    resetLive2DStatus();
+                    applyPngFallback(char);
+                }
                 return false;
             });
     };
@@ -609,6 +630,7 @@
         char = normalizeChar(char);
         wardrobeLive2DMode = false;
         destroyLive2DModel();
+        resetLive2DStatus();
         applyPngFallback(char);
     };
 

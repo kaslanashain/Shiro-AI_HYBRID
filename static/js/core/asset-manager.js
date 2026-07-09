@@ -7,7 +7,12 @@
 
     var BASE = '/static/images/';
     var catalog = null;
-    var selected = { shiro: 'expressions', sishin: 'live2d_custom' };
+    var catalogPromise = null;
+    var selected = { shiro: 'expressions', sishin: 'expressions' };
+    var LIVE2D_IDS = {
+        shiro: ['live2d', 'live2d_hiyori', 'live2d_haru', 'live2d_custom'],
+        sishin: ['live2d_custom', 'live2d_sishin', 'live2d_versi_baru', 'live2d_hiyori', 'live2d_haru', 'live2d']
+    };
 
     function storageKey() {
         var uid = (global.currentAuthUser && global.currentAuthUser.user_id) || 'guest';
@@ -19,8 +24,17 @@
             var raw = localStorage.getItem(storageKey());
             if (raw) {
                 var parsed = JSON.parse(raw);
-                if (parsed.shiro) selected.shiro = parsed.shiro;
-                if (parsed.sishin) selected.sishin = parsed.sishin;
+                if (parsed.shiro) {
+                    var sh = parsed.shiro;
+                    if (sh === 'live2d' || sh === 'live2d_hiyori') sh = 'live2d_haru';
+                    selected.shiro = sh;
+                }
+                if (parsed.sishin) {
+                    var s = parsed.sishin;
+                    if (s === 'live2d_sishin' || s === 'live2d_versi_baru') s = 'live2d_custom';
+                    if (s === 'live2d' || s === 'live2d_haru') s = 'live2d_hiyori';
+                    selected.sishin = s;
+                }
             }
         } catch (e) { /* keep defaults */ }
     }
@@ -85,6 +99,52 @@
         return (outfit && outfit.mode) || 'png';
     }
 
+    function isLive2DOutfitId(char, outfitId) {
+        char = normalizeChar(char);
+        var ids = LIVE2D_IDS[char] || [];
+        return ids.indexOf(outfitId) >= 0 || (outfitId && outfitId.indexOf('live2d') === 0);
+    }
+
+    function findDefaultOutfit(char) {
+        if (!catalog || !catalog[char]) return null;
+        var list = catalog[char];
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].id === 'expressions') return list[i];
+        }
+        for (var j = 0; j < list.length; j++) {
+            if (list[j].mode === 'png') return list[j];
+        }
+        return list[0] || null;
+    }
+
+    function migrateWardrobeIds() {
+        if (selected.shiro === 'live2d' || selected.shiro === 'live2d_hiyori') {
+            selected.shiro = 'live2d_haru';
+        }
+        if (selected.sishin === 'live2d_versi_baru' || selected.sishin === 'live2d_sishin') {
+            selected.sishin = 'live2d_custom';
+        }
+        if (selected.sishin === 'live2d' || selected.sishin === 'live2d_haru') {
+            selected.sishin = 'live2d_hiyori';
+        }
+        saveSelection();
+    }
+
+    function applyBootMigrations() {
+        migrateWardrobeIds();
+    }
+
+    function revertLive2DToExpressions(char) {
+        char = normalizeChar(char);
+        selected[char] = 'expressions';
+        saveSelection();
+        if (typeof global.deactivateLive2DFromWardrobe === 'function') {
+            global.deactivateLive2DFromWardrobe(char);
+        } else if (typeof global.applyHomeAvatarExpression === 'function') {
+            global.applyHomeAvatarExpression(char, getAffection());
+        }
+    }
+
     function isLive2DMode(char) {
         return getOutfitMode(char, getSelectedOutfit(char)) === 'live2d';
     }
@@ -108,6 +168,10 @@
         var outfit = getOutfit(char, options.outfitId);
 
         if (!outfit) {
+            return fallbackLegacy(char, tier);
+        }
+
+        if (outfit.mode === 'live2d') {
             return fallbackLegacy(char, tier);
         }
 
@@ -197,25 +261,46 @@
     }
 
     function fetchCatalog() {
-        return fetch('/api/wardrobe/catalog')
+        if (catalogPromise) return catalogPromise;
+
+        catalogPromise = fetch('/api/wardrobe/catalog')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 catalog = data.outfits || null;
                 ['shiro', 'sishin'].forEach(function(char) {
                     if (!catalog || !catalog[char]) return;
+                    if (char === 'shiro' && (selected.shiro === 'live2d' || selected.shiro === 'live2d_hiyori')) {
+                        selected.shiro = 'live2d_haru';
+                    }
+                    if (char === 'sishin') {
+                        if (selected.sishin === 'live2d_sishin' || selected.sishin === 'live2d_versi_baru') {
+                            selected.sishin = 'live2d_custom';
+                        }
+                        if (selected.sishin === 'live2d' || selected.sishin === 'live2d_haru') {
+                            selected.sishin = 'live2d_hiyori';
+                        }
+                    }
                     var valid = catalog[char].some(function(o) { return o.id === selected[char]; });
                     if (!valid) {
-                        var live2d = catalog[char].find(function(o) { return o.mode === 'live2d'; });
-                        selected[char] = live2d ? live2d.id : catalog[char][0].id;
+                        var fallback = findDefaultOutfit(char);
+                        selected[char] = fallback ? fallback.id : catalog[char][0].id;
                         saveSelection();
                     }
                 });
+                applyBootMigrations();
                 return catalog;
             })
             .catch(function() {
                 catalog = null;
+                catalogPromise = null;
                 return null;
             });
+
+        return catalogPromise;
+    }
+
+    function ensureCatalog() {
+        return catalog ? Promise.resolve(catalog) : fetchCatalog();
     }
 
     loadSelection();
@@ -223,12 +308,15 @@
     global.AssetManager = {
         resolve: resolve,
         fetchCatalog: fetchCatalog,
+        ensureCatalog: ensureCatalog,
         getCatalog: getCatalog,
         getSelectedOutfit: getSelectedOutfit,
         setOutfit: setOutfit,
         buildUrl: buildUrl,
         getPreviewUrl: getPreviewUrl,
         getOutfitMode: getOutfitMode,
-        isLive2DMode: isLive2DMode
+        isLive2DMode: isLive2DMode,
+        applyBootMigrations: applyBootMigrations,
+        revertLive2DToExpressions: revertLive2DToExpressions
     };
 }(window));
