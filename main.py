@@ -468,15 +468,38 @@ if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("Shiro AI System Initialized")
     logger.info("Voice: Edge TTS (ID) + Voicevox (JP)")
-    logger.info("Ollama model: %s", config.OLLAMA_MODEL)
+    logger.info("Ollama Shiro: %s | Sishin: %s", config.OLLAMA_MODEL_SHIRO, config.OLLAMA_MODEL_SISHIN)
+    try:
+        from app.llm_offline import check_ollama_models
+        ollama_status = check_ollama_models()
+        if ollama_status.get("shiro") and ollama_status.get("sishin"):
+            logger.info("[OK] Model offline shiro-ai & sishin-ai terdeteksi")
+        else:
+            logger.warning(
+                "[WARN] Model offline belum lengkap (shiro=%s sishin=%s). "
+                "Jalankan: py scripts/setup_ollama_models.py",
+                ollama_status.get("shiro"),
+                ollama_status.get("sishin"),
+            )
+    except Exception as exc:
+        logger.warning("[WARN] Cek Ollama gagal: %s", exc)
     logger.info("=" * 60)
 
     start_cleanup_scheduler()
     cleanup_old_tts_files()
 
-    # Preload Whisper agar STT pertama tidak lambat
-    logger.info("Preloading Whisper model...")
-    get_whisper_model()
+    # Preload di background — jangan blokir server/desktop launcher
+    logger.info("Preloading Whisper + Ollama offline (background)...")
+    threading.Thread(target=get_whisper_model, daemon=True, name="whisper-preload").start()
+
+    def _warmup_offline():
+        try:
+            from app.llm_offline import warmup_offline_model
+            warmup_offline_model("shiro")
+        except Exception as exc:
+            logger.warning("[OFF] Warmup skip: %s", exc)
+
+    threading.Thread(target=_warmup_offline, daemon=True, name="ollama-warmup").start()
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)

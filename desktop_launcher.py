@@ -51,6 +51,10 @@ def _server_up() -> bool:
 
 def _start_server_subprocess() -> subprocess.Popen | None:
     py = sys.executable
+    # Pakai venv python jika ada (konsisten dengan start_desktop.bat)
+    venv_py = os.path.join(ROOT, "venv", "Scripts", "python.exe")
+    if os.path.isfile(venv_py):
+        py = venv_py
     env = os.environ.copy()
     env.setdefault("FLASK_HOST", HOST)
     env.setdefault("FLASK_PORT", str(PORT))
@@ -67,7 +71,7 @@ def _start_server_subprocess() -> subprocess.Popen | None:
         return None
 
 
-def _wait_for_server(timeout: float = 45.0) -> bool:
+def _wait_for_server(timeout: float = 90.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if _server_up():

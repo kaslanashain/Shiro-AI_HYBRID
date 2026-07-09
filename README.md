@@ -15,7 +15,7 @@ Open http://127.0.0.1:5000
 
 ## Requirements
 
-- [Ollama](https://ollama.com/) with a chat model (`gemma2:2b`, `qwen2.5:7b`, etc.)
+- [Ollama](https://ollama.com/) with a chat model (`qwen2.5:3b` default offline, `qwen2.5:7b` arsip di `models/*.7b`)
 - Optional: [VOICEVOX](https://voicevox.hiroshiba.jp/) on port 50021 for Japanese voice
 - Optional: `GEMINI_API_KEY` for image descriptions
 

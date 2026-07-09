@@ -6,7 +6,14 @@ load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+# Model offline per karakter (buat dengan: py scripts/setup_ollama_models.py)
+OLLAMA_MODEL_SHIRO = os.environ.get("OLLAMA_MODEL_SHIRO", "shiro-ai")
+OLLAMA_MODEL_SISHIN = os.environ.get("OLLAMA_MODEL_SISHIN", "sishin-ai")
+OLLAMA_GGUF_PATH = os.environ.get(
+    "OLLAMA_GGUF_PATH",
+    os.path.join(BASE_DIR, "qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf"),
+)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_VISION_MODEL = os.environ.get("GEMINI_VISION_MODEL", "gemini-1.5-flash")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
@@ -42,6 +49,22 @@ OLLAMA_OPTIONS = {
     "repeat_penalty": 1.1,
 }
 
+# Opsi generasi saat offline — balance kecepatan vs kualitas
+OLLAMA_OFFLINE_OPTIONS = {
+    "temperature": float(os.environ.get("OLLAMA_OFFLINE_TEMP", "0.75")),
+    "top_p": float(os.environ.get("OLLAMA_OFFLINE_TOP_P", "0.9")),
+    "top_k": int(os.environ.get("OLLAMA_OFFLINE_TOP_K", "40")),
+    # Chat pendek 1-3 kalimat — 160 token cukup, jauh lebih cepat dari 384
+    "num_predict": int(os.environ.get("OLLAMA_OFFLINE_NUM_PREDICT", "160")),
+    "repeat_penalty": float(os.environ.get("OLLAMA_OFFLINE_REPEAT_PENALTY", "1.1")),
+    # 8192 ctx sangat berat di CPU; 4096 cukup untuk memori + prompt
+    "num_ctx": int(os.environ.get("OLLAMA_NUM_CTX", "4096")),
+}
+# Jaga model tetap di RAM antar pesan (cegah reload 7B tiap chat)
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
+# Satu model Ollama untuk kedua karakter offline — hindari swap shiro-ai <-> sishin-ai (lambat + bisa crash RAM)
+OLLAMA_OFFLINE_SHARED = os.environ.get("OLLAMA_OFFLINE_SHARED", "true").lower() in ("1", "true", "yes")
+
 SHIRO_KEYWORDS = ("shiro", "shiro-chan", "shirochan", "siro")
 SISHIN_KEYWORDS = ("sishin", "sashin", "sisin", "shishin")
 POSITIVE_KEYWORDS = ("sayang", "imut", "cantik", "cinta", "suka", "love", "daisuki")
@@ -68,4 +91,6 @@ logger = logging.getLogger(__name__)
 # Pastikan OLLAMA_HOST terbaca
 logger.info("[OK] OLLAMA_HOST = %s", os.environ.get("OLLAMA_HOST", "TIDAK SET"))
 logger.info("[OK] OLLAMA_MODEL = %s", OLLAMA_MODEL)
+logger.info("[OK] OLLAMA_MODEL_SHIRO = %s", OLLAMA_MODEL_SHIRO)
+logger.info("[OK] OLLAMA_MODEL_SISHIN = %s", OLLAMA_MODEL_SISHIN)
 logger.info("[OK] VOICEVOX_URL = %s", VOICEVOX_URL)

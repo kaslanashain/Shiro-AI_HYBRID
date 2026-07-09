@@ -102,7 +102,7 @@ def process_story_action(session_id, action, karakter=None, theme="fantasy", is_
         response = _call_llm([
             {"role": "system", "content": system},
             {"role": "user", "content": user_msg},
-        ])
+        ], karakter=karakter)
         raw = response["message"]["content"]
     except Exception as exc:
         logger.exception("Story LLM failed: %s", exc)

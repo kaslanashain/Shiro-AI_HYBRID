@@ -3,7 +3,6 @@ import os
 import random
 from datetime import datetime, timedelta
 
-import ollama
 import requests
 from groq import Groq
 from dotenv import load_dotenv
@@ -344,30 +343,27 @@ def _call_groq(messages, stream=False, on_token=None):
         print(f"[WARN] Groq error: {e}")
         return None
 
-def _call_ollama(messages):
-    host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-    client = ollama.Client(host=host)
-    return client.chat(
-        model=config.OLLAMA_MODEL,
-        messages=messages,
-        options=config.OLLAMA_OPTIONS,
-    )
-
-def _call_llm(messages, stream=False, on_token=None):
+def _call_llm(messages, stream=False, on_token=None, karakter="shiro"):
     if GROQ_API_KEY and is_internet_available():
-        print("[NET] Online: pakai Groq")
+        logger.info("[NET] Online: pakai Groq")
         result = _call_groq(messages, stream=stream, on_token=on_token)
         if result:
             return result
-        print("[WARN] Groq gagal, fallback ke Ollama")
+        logger.warning("[WARN] Groq gagal, fallback ke Ollama")
     else:
-        print("[OFF] Offline: pakai Ollama")
-    result = _call_ollama(messages)
-    if on_token:
-        content = result.get("message", {}).get("content", "")
-        if content:
-            on_token(content, content)
-    return result
+        logger.info("[OFF] Offline: pakai Ollama (%s)", karakter)
+
+    from app.llm_offline import call_ollama_offline
+    return call_ollama_offline(
+        messages,
+        karakter,
+        stream=stream,
+        on_token=on_token,
+    )
+
+
+def _is_offline_mode() -> bool:
+    return not (GROQ_API_KEY and is_internet_available())
 
 
 def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
@@ -388,8 +384,13 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
     simpan_status(status, user_id)
     _maybe_save_fact(pesan_user, user_id)
 
-    riwayat = muat_memori(user_id=user_id, karakter=karakter, limit=24)
-    konteks = build_konteks(riwayat, limit=12)
+    offline = _is_offline_mode()
+    mem_limit = 10 if offline else 24
+    ctx_limit = 6 if offline else 12
+    llm_hist = 8 if offline else 18
+
+    riwayat = muat_memori(user_id=user_id, karakter=karakter, limit=mem_limit)
+    konteks = build_konteks(riwayat, limit=ctx_limit)
     fakta_list = muat_fakta(user_id)
     cache_key = get_cache_key(pesan_user, konteks, karakter)
 
@@ -408,7 +409,7 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
     system_prompt = build_system_prompt(
         karakter, konteks, status.get("affection", 50), fakta_list, pesan_user, user_id
     )
-    riwayat_llm = riwayat[-18:] if len(riwayat) > 18 else riwayat
+    riwayat_llm = riwayat[-llm_hist:] if len(riwayat) > llm_hist else riwayat
     messages = [{"role": "system", "content": system_prompt}] + riwayat_llm + [
         {"role": "user", "content": pesan_user}
     ]
@@ -440,7 +441,7 @@ def jawab_shiro_stream(pesan_user, preferred_karakter=None, force_preferred=Fals
         return result, muat_status()
 
     try:
-        response = _call_llm(ctx["messages"], stream=True, on_token=on_token)
+        response = _call_llm(ctx["messages"], stream=True, on_token=on_token, karakter=karakter)
         raw = response["message"]["content"]
         result = _parse_model_response(raw, konteks, karakter)
         cache_set(ctx["cache_key"], (result, status))
@@ -742,7 +743,7 @@ def jawab_shiro(pesan_user, preferred_karakter=None, force_preferred=False):
         return ctx["cached_result"], muat_status()
 
     try:
-        response = _call_llm(ctx["messages"])
+        response = _call_llm(ctx["messages"], karakter=karakter)
         raw = response["message"]["content"]
         result = _parse_model_response(raw, konteks, karakter)
         cache_set(ctx["cache_key"], (result, status))
