@@ -81,6 +81,20 @@
     ],
     "aliases": ["visual studio code", "vs code", "code editor", "vscode"]
   },
+  "cursor": {
+    "label": "Cursor",
+    "exe": "Cursor.exe",
+    "paths": [
+      "%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe",
+      "%LOCALAPPDATA%\\Programs\\Cursor\\Cursor.exe",
+      "%LOCALAPPDATA%\\cursor\\Cursor.exe"
+    ],
+    "glob_paths": [
+      "%LOCALAPPDATA%\\Programs\\cursor\\**\\Cursor.exe",
+      "%LOCALAPPDATA%\\Programs\\Cursor\\**\\Cursor.exe"
+    ],
+    "aliases": ["cursor ide", "cursor editor", "cursor ai", "kursor", "ide cursor", "kursor ai"]
+  },
   "explorer": {
     "label": "File Explorer",
     "exe": "explorer.exe",

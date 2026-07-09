@@ -15,6 +15,7 @@ debug_audio/
 last_affection.txt
 _test_gguf.modelfile
 static/live2d/_archive/
+app/data/user_apps/_discovered_cache.json
 # Virtual Environment
 venv/
 

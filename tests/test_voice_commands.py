@@ -45,6 +45,18 @@ def test_resolve_app_key_fuzzy():
     assert score > 0
 
 
+def test_resolve_app_key_cursor():
+    key, score = resolve_app_key("cursor")
+    assert key == "cursor"
+    assert score > 0
+
+
+def test_parse_launch_intent_cursor():
+    intent = parse_launch_intent("buka cursor", "shiro")
+    assert intent is not None
+    assert intent.app_query.lower() == "cursor"
+
+
 def test_character_callback_success():
     from app.voice_commands import LaunchResult
 

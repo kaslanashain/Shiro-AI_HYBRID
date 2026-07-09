@@ -1,0 +1,21 @@
+{
+  "_petunjuk": "Tambah aplikasi/file manual di sini. Contoh di bawah — hapus _petunjuk saat dipakai.",
+  "contoh_game": {
+    "label": "Game Favorit",
+    "type": "app",
+    "path": "C:\\Path\\Ke\\game.exe",
+    "aliases": ["game favorit", "main game"]
+  },
+  "contoh_folder": {
+    "label": "Folder Kerja",
+    "type": "folder",
+    "path": "D:\\Kerja",
+    "aliases": ["kerja", "folder kerja"]
+  },
+  "contoh_file": {
+    "label": "Catatan Penting",
+    "type": "file",
+    "path": "%USERPROFILE%\\Documents\\catatan.txt",
+    "aliases": ["catatan", "notes"]
+  }
+}

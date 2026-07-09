@@ -3,8 +3,7 @@ Voice-command app launcher for Shiro AI (Windows).
 
 Flow: transcript -> intent parse -> whitelist lookup -> subprocess launch -> character callback.
 
-Security: only apps listed in app/data/windows_apps.json may be launched; no shell=True;
-executable paths must resolve from the registry — arbitrary user paths are rejected.
+Security: built-in whitelist + PC scan + user folder app/data/user_apps/tambah_di_sini/
 """
 from __future__ import annotations
 
@@ -20,6 +19,14 @@ from dataclasses import dataclass, field
 from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Callable, Optional
+
+from app.app_catalog import (
+    get_merged_registry,
+    list_catalog_items,
+    rescan_catalog,
+    resolve_catalog_key,
+    resolve_catalog_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,24 +126,12 @@ def _expand_path(path: str) -> str:
 
 
 def _load_app_registry() -> dict[str, dict[str, Any]]:
-    if not _DATA_PATH.is_file():
-        logger.warning("App registry missing: %s", _DATA_PATH)
-        return {}
-    with open(_DATA_PATH, encoding="utf-8") as fh:
-        data = json.load(fh)
-    return data if isinstance(data, dict) else {}
+    return get_merged_registry()
 
 
 def _build_alias_index(registry: dict[str, dict]) -> dict[str, str]:
-    index: dict[str, str] = {}
-    for key, entry in registry.items():
-        index[key.lower()] = key
-        label = (entry.get("label") or key).lower()
-        index[label] = key
-        for alias in entry.get("aliases") or []:
-            if alias:
-                index[str(alias).lower()] = key
-    return index
+    from app.app_catalog import build_alias_index
+    return build_alias_index(registry)
 
 
 def normalize_transcript(text: str) -> str:
@@ -192,27 +187,7 @@ def parse_launch_intent(text: str, karakter: str = "shiro") -> Optional[LaunchIn
 
 def resolve_app_key(app_query: str, registry: Optional[dict] = None) -> tuple[Optional[str], float]:
     """Map user-spoken app name to registry key (exact + fuzzy)."""
-    registry = registry or _load_app_registry()
-    if not registry:
-        return None, 0.0
-
-    query = app_query.lower().strip()
-    alias_index = _build_alias_index(registry)
-
-    if query in alias_index:
-        return alias_index[query], 1.0
-
-    # Substring match (e.g. "google chrome browser" -> chrome)
-    for alias, key in sorted(alias_index.items(), key=lambda x: -len(x[0])):
-        if alias in query or query in alias:
-            return key, 0.92
-
-    keys = list(alias_index.keys())
-    matches = get_close_matches(query, keys, n=1, cutoff=0.62)
-    if matches:
-        return alias_index[matches[0]], 0.75
-
-    return None, 0.0
+    return resolve_catalog_key(app_query, registry or get_merged_registry())
 
 
 def _load_registry_app_paths() -> dict[str, str]:
@@ -294,32 +269,7 @@ def _resolve_registry_exe(app_query: str) -> tuple[Optional[str], float]:
 
 
 def _resolve_executable(entry: dict[str, Any]) -> Optional[str]:
-    exe_name = entry.get("exe") or ""
-    if not exe_name:
-        return None
-
-    if entry.get("use_startfile") and exe_name.startswith("ms-"):
-        return exe_name
-
-    for raw in entry.get("paths") or []:
-        path = _expand_path(raw)
-        if path and os.path.isfile(path):
-            return path
-
-    for pattern in entry.get("glob_paths") or []:
-        expanded = _expand_path(pattern)
-        if not expanded:
-            continue
-        matches = sorted(glob.glob(expanded), reverse=True)
-        for candidate in matches:
-            if os.path.isfile(candidate):
-                return candidate
-
-    found = shutil.which(exe_name)
-    if found and os.path.isfile(found):
-        return found
-
-    return None
+    return resolve_catalog_path(entry)
 
 
 def _is_blocked(entry: dict[str, Any], exe_path: str) -> bool:
@@ -329,6 +279,10 @@ def _is_blocked(entry: dict[str, Any], exe_path: str) -> bool:
 
 def _spawn_exe(exe_path: str, entry: Optional[dict[str, Any]] = None) -> None:
     entry = entry or {}
+    item_type = entry.get("type", "app")
+    if item_type in ("file", "folder") or os.path.isdir(exe_path):
+        os.startfile(exe_path)  # noqa: S606
+        return
     if entry.get("use_startfile") or exe_path.startswith("ms-"):
         os.startfile(exe_path)  # noqa: S606
         return
@@ -348,8 +302,7 @@ def _spawn_exe(exe_path: str, entry: Optional[dict[str, Any]] = None) -> None:
 
 def launch_application(app_query: str) -> LaunchResult:
     """
-    Securely launch a whitelisted Windows application.
-    Only works on Windows; returns not_found on other OS.
+    Securely launch a catalog item (app, file, or folder) on Windows.
     """
     if sys.platform != "win32":
         return LaunchResult(
@@ -384,7 +337,7 @@ def launch_application(app_query: str) -> LaunchResult:
             ok=False,
             status="not_found",
             app_label=app_label,
-            message=f"Aplikasi '{app_query}' tidak ditemukan di PC ini.",
+            message=f"Aplikasi '{app_query}' tidak ditemukan di PC ini. Taruh shortcut di app/data/user_apps/tambah_di_sini/",
             meta={"confidence": confidence},
         )
 
@@ -449,6 +402,18 @@ def process_launch_command(
     Full pipeline: parse intent -> launch -> character response.
     Returns None if the utterance is not an app-launch command.
     """
+    if re.search(r"scan\s+ulang|perbarui\s+daftar|refresh\s+apps?", text, re.IGNORECASE):
+        stats = rescan_catalog()
+        result = LaunchResult(
+            ok=True,
+            status="success",
+            app_label="katalog aplikasi",
+            message=f"Scan selesai: {stats.get('total', 0)} item ditemukan.",
+            meta=stats,
+        )
+        result.karakter = karakter
+        return build_character_callback(result, karakter)
+
     intent = parse_launch_intent(text, karakter)
     if not intent:
         return None
@@ -464,31 +429,5 @@ def process_launch_command(
 
 
 def list_available_apps() -> list[dict[str, str]]:
-    """Apps in registry that appear installed on this machine."""
-    registry = _load_app_registry()
-    out = []
-    seen = set()
-    for key, entry in registry.items():
-        exe = _resolve_executable(entry)
-        out.append(
-            {
-                "key": key,
-                "label": entry.get("label") or key.title(),
-                "installed": bool(exe),
-            }
-        )
-        seen.add(key.lower())
-
-    for alias, path in sorted(_load_registry_app_paths().items(), key=lambda x: x[0]):
-        if alias.endswith(".exe") or len(alias) < 4 or alias in seen:
-            continue
-        seen.add(alias)
-        out.append(
-            {
-                "key": alias,
-                "label": alias.replace("_", " ").title(),
-                "installed": True,
-            }
-        )
-
-    return sorted(out, key=lambda x: x["label"].lower())
+    """Apps, files, and folders in the merged catalog."""
+    return list_catalog_items(limit=800)

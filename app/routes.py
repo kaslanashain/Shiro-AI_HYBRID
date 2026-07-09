@@ -15,6 +15,7 @@ from app.db import _resolve_user_id, muat_status
 from app.story import get_active_story, process_story_action, start_story, STORY_THEMES
 from app.tts import generate_speech, cleanup_old_tts_files
 from app.voice_commands import list_available_apps, process_launch_command
+from app.app_catalog import rescan_catalog, get_add_here_path
 
 logger = logging.getLogger(__name__)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
@@ -163,8 +164,28 @@ def register_routes(app):
 
     @app.route("/api/voice/apps", methods=["GET"])
     def voice_apps_list():
-        """List whitelisted apps and whether they appear installed on this PC."""
-        return jsonify({"apps": list_available_apps(), "platform": os.name})
+        """List apps, files, and folders Shiro/Sishin can open on this PC."""
+        items = list_available_apps()
+        apps = sum(1 for i in items if i.get("type", "app") == "app")
+        files = sum(1 for i in items if i.get("type") == "file")
+        folders = sum(1 for i in items if i.get("type") == "folder")
+        return jsonify({
+            "apps": items,
+            "platform": os.name,
+            "stats": {"total": len(items), "apps": apps, "files": files, "folders": folders},
+            "add_here": get_add_here_path(),
+        })
+
+    @app.route("/api/voice/rescan", methods=["POST"])
+    def voice_apps_rescan():
+        """Rescan PC for installed apps, shortcuts, and indexed files."""
+        try:
+            result = rescan_catalog()
+            result["apps"] = list_available_apps()[:100]
+            return jsonify(result)
+        except Exception as exc:
+            logger.exception("voice rescan failed: %s", exc)
+            return jsonify({"ok": False, "error": str(exc)}), 500
 
     @app.route("/api/voice/launch", methods=["POST"])
     def voice_launch():
