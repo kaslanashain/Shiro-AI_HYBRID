@@ -618,9 +618,7 @@ window.sendMessage = function() {
         body: JSON.stringify({
             message: message,
             karakter: char,
-            voice_commands: (window.VoiceCommands && VoiceCommands.isEnabled())
-                ? VoiceCommands.isEnabled()
-                : true
+            voice_commands: true
         })
     })
     .then(function(response) { return response.json(); })
@@ -1881,12 +1879,11 @@ function startOneShotRecognition(langTryIndex) {
         if (waPtt) waPtt.classList.remove('wa-ptt-active');
 
         var activeChar = currentCharacter || 'shiro';
-        var vcOn = (window.VoiceCommands && VoiceCommands.isEnabled()) ? VoiceCommands.isEnabled() : true;
         if (socket && socket.connected) {
             socket.emit('voice_text', {
                 text: text,
                 karakter: activeChar,
-                voice_commands: vcOn
+                voice_commands: true
             });
             console.log('VTuber PTT sent (' + activeChar + '):', text);
         } else {

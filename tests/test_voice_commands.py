@@ -27,8 +27,16 @@ def test_parse_launch_intent_english():
     assert "spotify" in intent.app_query.lower()
 
 
-def test_parse_launch_intent_non_command():
-    assert parse_launch_intent("kamu lucu banget") is None
+def test_parse_launch_intent_bisakah():
+    intent = parse_launch_intent("bisakah kamu buka notepad", "shiro")
+    assert intent is not None
+    assert "notepad" in intent.app_query.lower()
+
+
+def test_parse_launch_intent_software_keyword():
+    intent = parse_launch_intent("tolong buka software spotify dong", "sishin")
+    assert intent is not None
+    assert "spotify" in intent.app_query.lower()
 
 
 def test_resolve_app_key_fuzzy():

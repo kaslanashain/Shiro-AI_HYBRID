@@ -78,7 +78,7 @@
         var payload = {
             text: text,
             karakter: karakter,
-            voice_commands: isFeatureEnabled()
+            voice_commands: true
         };
 
         if (global.socket && global.socket.connected) {
@@ -88,7 +88,7 @@
         }
 
         if (typeof global.sendMessageWithText === 'function') {
-            global.sendMessageWithText(text, { voice_commands: isFeatureEnabled() });
+            global.sendMessageWithText(text, { voice_commands: true });
             return true;
         }
 

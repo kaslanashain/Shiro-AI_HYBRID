@@ -6,7 +6,7 @@
       "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
       "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
     ],
-    "aliases": ["google chrome", "google", "browser", "brave browser"]
+    "aliases": ["google chrome", "google", "browser", "brave browser", "chrom"]
   },
   "edge": {
     "label": "Microsoft Edge",
@@ -15,7 +15,7 @@
       "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
       "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
     ],
-    "aliases": ["microsoft edge", "browser edge"]
+    "aliases": ["microsoft edge", "browser edge", "edje"]
   },
   "firefox": {
     "label": "Mozilla Firefox",
@@ -24,38 +24,44 @@
       "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
       "C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe"
     ],
-    "aliases": ["mozilla firefox"]
+    "aliases": ["mozilla firefox", "mozila"]
   },
   "notepad": {
     "label": "Notepad",
     "exe": "notepad.exe",
     "paths": [],
-    "aliases": ["catatan", "notes", "text editor"]
+    "aliases": ["catatan", "notes", "text editor", "notepad++"]
   },
   "calculator": {
     "label": "Calculator",
     "exe": "calc.exe",
     "paths": [],
-    "aliases": ["kalkulator", "calc"]
+    "aliases": ["kalkulator", "calc", "kalk"]
   },
   "spotify": {
     "label": "Spotify",
     "exe": "Spotify.exe",
     "paths": [
       "%APPDATA%\\Spotify\\Spotify.exe",
-      "C:\\Users\\%USERNAME%\\AppData\\Roaming\\Spotify\\Spotify.exe"
+      "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Spotify.exe"
     ],
-    "aliases": ["spotify music", "musik"]
+    "glob_paths": [
+      "%LOCALAPPDATA%\\Spotify\\Spotify.exe"
+    ],
+    "aliases": ["spotify music", "musik", "spotifi"]
   },
   "discord": {
     "label": "Discord",
     "exe": "Discord.exe",
     "paths": [
-      "%LOCALAPPDATA%\\Discord\\Update.exe",
-      "C:\\Users\\%USERNAME%\\AppData\\Local\\Discord\\Update.exe"
+      "%LOCALAPPDATA%\\Discord\\Update.exe"
+    ],
+    "glob_paths": [
+      "%LOCALAPPDATA%\\Discord\\app-*\\Discord.exe",
+      "%APPDATA%\\Discord\\app-*\\Discord.exe"
     ],
     "launch_args": ["--processStart", "Discord.exe"],
-    "aliases": []
+    "aliases": ["diskord", "dc"]
   },
   "steam": {
     "label": "Steam",
@@ -64,27 +70,28 @@
       "C:\\Program Files (x86)\\Steam\\steam.exe",
       "C:\\Program Files\\Steam\\steam.exe"
     ],
-    "aliases": []
+    "aliases": ["stim"]
   },
   "vscode": {
     "label": "Visual Studio Code",
     "exe": "Code.exe",
     "paths": [
-      "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe"
+      "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
+      "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\bin\\code.cmd"
     ],
-    "aliases": ["visual studio code", "vs code", "code editor"]
+    "aliases": ["visual studio code", "vs code", "code editor", "vscode"]
   },
   "explorer": {
     "label": "File Explorer",
     "exe": "explorer.exe",
     "paths": [],
-    "aliases": ["file explorer", "files", "folder", "explorer", "penjelajah file"]
+    "aliases": ["file explorer", "files", "folder", "explorer", "penjelajah file", "file"]
   },
   "paint": {
     "label": "Paint",
     "exe": "mspaint.exe",
     "paths": [],
-    "aliases": ["mspaint", "microsoft paint"]
+    "aliases": ["mspaint", "microsoft paint", "cat air"]
   },
   "word": {
     "label": "Microsoft Word",
@@ -93,7 +100,7 @@
       "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
       "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\WINWORD.EXE"
     ],
-    "aliases": ["microsoft word", "ms word"]
+    "aliases": ["microsoft word", "ms word", "word"]
   },
   "excel": {
     "label": "Microsoft Excel",
@@ -102,7 +109,16 @@
       "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
       "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\EXCEL.EXE"
     ],
-    "aliases": ["microsoft excel", "ms excel"]
+    "aliases": ["microsoft excel", "ms excel", "excel"]
+  },
+  "powerpoint": {
+    "label": "Microsoft PowerPoint",
+    "exe": "POWERPNT.EXE",
+    "paths": [
+      "C:\\Program Files\\Microsoft Office\\root\\Office16\\POWERPNT.EXE",
+      "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\POWERPNT.EXE"
+    ],
+    "aliases": ["microsoft powerpoint", "ms powerpoint", "power point", "ppt"]
   },
   "task manager": {
     "label": "Task Manager",
@@ -115,13 +131,13 @@
     "exe": "ms-settings:",
     "paths": [],
     "use_startfile": true,
-    "aliases": ["windows settings", "pengaturan", "setting"]
+    "aliases": ["windows settings", "pengaturan", "setting", "settings"]
   },
   "photos": {
     "label": "Photos",
     "exe": "Microsoft.Photos.exe",
     "paths": [],
-    "aliases": ["foto", "microsoft photos"]
+    "aliases": ["foto", "microsoft photos", "galeri"]
   },
   "vlc": {
     "label": "VLC",
@@ -130,14 +146,93 @@
       "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",
       "C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe"
     ],
-    "aliases": ["vlc media player"]
+    "aliases": ["vlc media player", "pemutar video"]
   },
   "obs": {
     "label": "OBS Studio",
     "exe": "obs64.exe",
     "paths": [
-      "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe"
+      "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe",
+      "C:\\Program Files (x86)\\obs-studio\\bin\\64bit\\obs64.exe"
     ],
-    "aliases": ["obs studio"]
+    "aliases": ["obs studio", "obs"]
+  },
+  "whatsapp": {
+    "label": "WhatsApp",
+    "exe": "WhatsApp.exe",
+    "paths": [
+      "%LOCALAPPDATA%\\WhatsApp\\WhatsApp.exe"
+    ],
+    "glob_paths": [
+      "%LOCALAPPDATA%\\WhatsApp\\WhatsApp.exe",
+      "%LOCALAPPDATA%\\Packages\\*WhatsApp*\\WhatsApp.exe"
+    ],
+    "aliases": ["wa", "whats app", "watsapp"]
+  },
+  "telegram": {
+    "label": "Telegram",
+    "exe": "Telegram.exe",
+    "paths": [
+      "%APPDATA%\\Telegram Desktop\\Telegram.exe"
+    ],
+    "aliases": ["tele", "telegram desktop"]
+  },
+  "zoom": {
+    "label": "Zoom",
+    "exe": "Zoom.exe",
+    "paths": [
+      "%APPDATA%\\Zoom\\bin\\Zoom.exe",
+      "C:\\Users\\%USERNAME%\\AppData\\Roaming\\Zoom\\bin\\Zoom.exe"
+    ],
+    "aliases": ["zoom meeting", "zom"]
+  },
+  "teams": {
+    "label": "Microsoft Teams",
+    "exe": "ms-teams.exe",
+    "paths": [
+      "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\ms-teams.exe",
+      "%LOCALAPPDATA%\\Microsoft\\Teams\\current\\Teams.exe"
+    ],
+    "aliases": ["microsoft teams", "ms teams", "team"]
+  },
+  "capcut": {
+    "label": "CapCut",
+    "exe": "CapCut.exe",
+    "paths": [
+      "%LOCALAPPDATA%\\CapCut\\Apps\\CapCut.exe"
+    ],
+    "glob_paths": [
+      "%LOCALAPPDATA%\\CapCut\\Apps\\*\\CapCut.exe"
+    ],
+    "aliases": ["cap cut", "kapcut"]
+  },
+  "roblox": {
+    "label": "Roblox",
+    "exe": "RobloxPlayerBeta.exe",
+    "paths": [
+      "%LOCALAPPDATA%\\Roblox\\Versions\\RobloxPlayerBeta.exe"
+    ],
+    "glob_paths": [
+      "%LOCALAPPDATA%\\Roblox\\Versions\\*\\RobloxPlayerBeta.exe"
+    ],
+    "aliases": ["roblox player"]
+  },
+  "minecraft": {
+    "label": "Minecraft Launcher",
+    "exe": "MinecraftLauncher.exe",
+    "paths": [
+      "%LOCALAPPDATA%\\Packages\\Microsoft.MinecraftUWP_8wekyb3d8bbwe\\MinecraftLauncher.exe"
+    ],
+    "glob_paths": [
+      "%PROGRAMFILES%\\Minecraft Launcher\\MinecraftLauncher.exe",
+      "%PROGRAMFILES(X86)%\\Minecraft Launcher\\MinecraftLauncher.exe"
+    ],
+    "aliases": ["minecraft", "mc"]
+  },
+  "snipping tool": {
+    "label": "Snipping Tool",
+    "exe": "SnippingTool.exe",
+    "paths": [],
+    "aliases": ["snip", "screenshot", "tangkapan layar", "snippingtool"]
   }
 }

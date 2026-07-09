@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import glob
 from dataclasses import dataclass, field
 from difflib import get_close_matches
 from pathlib import Path
@@ -35,7 +36,7 @@ _CHAR_PREFIX = r"^(?:shiro|sishin|siro|sisin)[,\s\-]+"
 
 _OPEN_PATTERNS = [
     re.compile(
-        rf"(?:{_OPEN_VERBS})\s+(?:aplikasi\s+|app\s+|program\s+)?(?P<app>.+?)\s*$",
+        rf"(?:{_OPEN_VERBS})\s+(?:aplikasi\s+|app\s+|program\s+|software\s+)?(?P<app>.+?)\s*$",
         re.IGNORECASE,
     ),
     re.compile(
@@ -43,10 +44,22 @@ _OPEN_PATTERNS = [
         re.IGNORECASE,
     ),
     re.compile(
-        r"^(?P<app>.+?)\s+(?:dong|deh|ya|please|pls)\s*$",
+        r"(?:bisakah|bisa|minta)\s+(?:kamu\s+|kalian\s+)?(?:tolong\s+)?"
+        rf"(?:{_OPEN_VERBS})\s+(?:aplikasi\s+|app\s+|program\s+)?(?P<app>.+?)\s*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?P<app>.+?)\s+(?:dong|deh|ya|nih|please|pls)\s*$",
         re.IGNORECASE,
     ),
 ]
+
+_TRAILING_POLITENESS = re.compile(
+    r"\s+(?:dong|deh|ya|yah|nih|please|pls|kak|sayang|teman)\s*$",
+    re.IGNORECASE,
+)
+
+_registry_paths_cache: Optional[dict[str, str]] = None
 
 _BLOCKED_EXES = frozenset(
     {
@@ -130,8 +143,25 @@ def normalize_transcript(text: str) -> str:
     """Strip wake words / character names from the start of a voice utterance."""
     t = (text or "").strip()
     t = re.sub(_CHAR_PREFIX, "", t, flags=re.IGNORECASE).strip()
-    t = re.sub(_WAKE_PREFIX, "", t, flags=re.IGNORECASE).strip()
+    for _ in range(3):
+        prev = t
+        t = re.sub(_WAKE_PREFIX, "", t, flags=re.IGNORECASE).strip()
+        t = re.sub(
+            r"^(?:bisakah|bisa|minta)\s+(?:kamu\s+|kalian\s+)?(?:tolong\s+)?",
+            "",
+            t,
+            flags=re.IGNORECASE,
+        ).strip()
+        if t == prev:
+            break
     return t
+
+
+def _clean_app_query(app_query: str) -> str:
+    q = (app_query or "").strip(" .,!?:;\"'")
+    q = _TRAILING_POLITENESS.sub("", q).strip()
+    q = re.sub(r"^(?:aplikasi|app|program|software)\s+", "", q, flags=re.IGNORECASE).strip()
+    return q
 
 
 def parse_launch_intent(text: str, karakter: str = "shiro") -> Optional[LaunchIntent]:
@@ -147,9 +177,14 @@ def parse_launch_intent(text: str, karakter: str = "shiro") -> Optional[LaunchIn
         match = pattern.search(cleaned)
         if not match:
             continue
-        app_query = (match.group("app") or "").strip(" .,!?:;\"'")
+        app_query = _clean_app_query(match.group("app") or "")
         if len(app_query) < 2:
             continue
+        has_open_verb = bool(re.search(_OPEN_VERBS, cleaned, re.IGNORECASE))
+        has_polite_tail = bool(re.search(r"\b(dong|deh|please|pls)\s*$", cleaned, re.IGNORECASE))
+        if not has_open_verb:
+            if not has_polite_tail or len(app_query.split()) > 4:
+                continue
         return LaunchIntent(raw_text=text, app_query=app_query, karakter=karakter)
 
     return None
@@ -180,6 +215,84 @@ def resolve_app_key(app_query: str, registry: Optional[dict] = None) -> tuple[Op
     return None, 0.0
 
 
+def _load_registry_app_paths() -> dict[str, str]:
+    """Build alias -> exe path map from Windows App Paths registry."""
+    global _registry_paths_cache
+    if _registry_paths_cache is not None:
+        return _registry_paths_cache
+
+    index: dict[str, str] = {}
+    if sys.platform != "win32":
+        _registry_paths_cache = index
+        return index
+
+    try:
+        import winreg
+    except ImportError:
+        _registry_paths_cache = index
+        return index
+
+    subkeys = [
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"),
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"),
+    ]
+    for hive, sub in subkeys:
+        try:
+            with winreg.OpenKey(hive, sub) as root:
+                count = winreg.QueryInfoKey(root)[0]
+                for i in range(count):
+                    try:
+                        exe_name = winreg.EnumKey(root, i)
+                        with winreg.OpenKey(root, exe_name) as app_key:
+                            path, _ = winreg.QueryValueEx(app_key, "")
+                        path = (path or "").strip().strip('"')
+                        if not path or not os.path.isfile(path):
+                            continue
+                        base = exe_name.lower()
+                        stem = base[:-4] if base.endswith(".exe") else base
+                        index[base] = path
+                        index[stem] = path
+                        label = stem.replace("_", " ").replace("-", " ")
+                        if label and label not in index:
+                            index[label] = path
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+
+    _registry_paths_cache = index
+    return index
+
+
+def _resolve_registry_exe(app_query: str) -> tuple[Optional[str], float]:
+    """Find installed app exe via Windows registry App Paths."""
+    reg = _load_registry_app_paths()
+    if not reg:
+        return None, 0.0
+
+    query = app_query.lower().strip()
+    if query in reg:
+        return reg[query], 1.0
+
+    query_exe = query if query.endswith(".exe") else query + ".exe"
+    if query_exe in reg:
+        return reg[query_exe], 1.0
+
+    for alias, path in sorted(reg.items(), key=lambda x: -len(x[0])):
+        if len(alias) < 3:
+            continue
+        if alias in query or query in alias:
+            return path, 0.9
+
+    keys = list(reg.keys())
+    matches = get_close_matches(query, keys, n=1, cutoff=0.58)
+    if matches:
+        return reg[matches[0]], 0.72
+
+    return None, 0.0
+
+
 def _resolve_executable(entry: dict[str, Any]) -> Optional[str]:
     exe_name = entry.get("exe") or ""
     if not exe_name:
@@ -193,6 +306,15 @@ def _resolve_executable(entry: dict[str, Any]) -> Optional[str]:
         if path and os.path.isfile(path):
             return path
 
+    for pattern in entry.get("glob_paths") or []:
+        expanded = _expand_path(pattern)
+        if not expanded:
+            continue
+        matches = sorted(glob.glob(expanded), reverse=True)
+        for candidate in matches:
+            if os.path.isfile(candidate):
+                return candidate
+
     found = shutil.which(exe_name)
     if found and os.path.isfile(found):
         return found
@@ -203,6 +325,25 @@ def _resolve_executable(entry: dict[str, Any]) -> Optional[str]:
 def _is_blocked(entry: dict[str, Any], exe_path: str) -> bool:
     exe_name = os.path.basename(exe_path or entry.get("exe") or "").lower()
     return exe_name in _BLOCKED_EXES
+
+
+def _spawn_exe(exe_path: str, entry: Optional[dict[str, Any]] = None) -> None:
+    entry = entry or {}
+    if entry.get("use_startfile") or exe_path.startswith("ms-"):
+        os.startfile(exe_path)  # noqa: S606
+        return
+    args = [exe_path]
+    extra = entry.get("launch_args") or []
+    if extra:
+        args.extend(extra)
+    subprocess.Popen(  # noqa: S603
+        args,
+        shell=False,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+    )
 
 
 def launch_application(app_query: str) -> LaunchResult:
@@ -220,30 +361,34 @@ def launch_application(app_query: str) -> LaunchResult:
 
     registry = _load_app_registry()
     app_key, confidence = resolve_app_key(app_query, registry)
-    if not app_key:
-        return LaunchResult(
-            ok=False,
-            status="not_found",
-            app_label=app_query.title(),
-            message=f"Aplikasi '{app_query}' tidak ada di whitelist.",
-            meta={"confidence": confidence},
-        )
+    entry: Optional[dict[str, Any]] = None
+    exe_path: Optional[str] = None
+    app_label = app_query.title()
 
-    entry = registry[app_key]
-    app_label = entry.get("label") or app_key.title()
-    exe_path = _resolve_executable(entry)
+    if app_key:
+        entry = registry[app_key]
+        app_label = entry.get("label") or app_key.title()
+        exe_path = _resolve_executable(entry)
+
+    if not exe_path:
+        reg_path, reg_conf = _resolve_registry_exe(app_query)
+        if reg_path:
+            exe_path = reg_path
+            confidence = max(confidence, reg_conf)
+            if not app_key:
+                app_label = app_query.title()
+                app_key = os.path.splitext(os.path.basename(reg_path))[0].lower()
 
     if not exe_path:
         return LaunchResult(
             ok=False,
             status="not_found",
-            app_key=app_key,
             app_label=app_label,
-            message=f"{app_label} terdaftar tapi tidak terpasang di PC ini.",
+            message=f"Aplikasi '{app_query}' tidak ditemukan di PC ini.",
             meta={"confidence": confidence},
         )
 
-    if _is_blocked(entry, exe_path):
+    if _is_blocked(entry or {}, exe_path):
         return LaunchResult(
             ok=False,
             status="blocked",
@@ -254,22 +399,8 @@ def launch_application(app_query: str) -> LaunchResult:
         )
 
     try:
-        if entry.get("use_startfile") or exe_path.startswith("ms-"):
-            os.startfile(exe_path)  # noqa: S606 — Windows URI schemes e.g. ms-settings:
-        else:
-            args = [exe_path]
-            extra = entry.get("launch_args") or []
-            if extra:
-                args.extend(extra)
-            subprocess.Popen(  # noqa: S603
-                args,
-                shell=False,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                close_fds=True,
-            )
-        logger.info("Launched app %s via %s", app_key, exe_path)
+        _spawn_exe(exe_path, entry)
+        logger.info("Launched app %s via %s", app_key or app_label, exe_path)
         return LaunchResult(
             ok=True,
             status="success",
@@ -336,6 +467,7 @@ def list_available_apps() -> list[dict[str, str]]:
     """Apps in registry that appear installed on this machine."""
     registry = _load_app_registry()
     out = []
+    seen = set()
     for key, entry in registry.items():
         exe = _resolve_executable(entry)
         out.append(
@@ -345,4 +477,18 @@ def list_available_apps() -> list[dict[str, str]]:
                 "installed": bool(exe),
             }
         )
+        seen.add(key.lower())
+
+    for alias, path in sorted(_load_registry_app_paths().items(), key=lambda x: x[0]):
+        if alias.endswith(".exe") or len(alias) < 4 or alias in seen:
+            continue
+        seen.add(alias)
+        out.append(
+            {
+                "key": alias,
+                "label": alias.replace("_", " ").title(),
+                "installed": True,
+            }
+        )
+
     return sorted(out, key=lambda x: x["label"].lower())
