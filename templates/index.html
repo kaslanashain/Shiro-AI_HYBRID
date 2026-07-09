@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/premium.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/wow-ui.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/premium-cursor.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/wa-call.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}">
@@ -115,25 +116,6 @@
         @keyframes pulse {
             0%, 100% { opacity: 0.4; }
             50% { opacity: 1; }
-        }
-
-        .cursor-glow {
-            position: fixed;
-            pointer-events: none;
-            z-index: 9999;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(150,120,255,0.3) 0%, rgba(150,120,255,0) 70%);
-            transform: translate(-50%, -50%);
-            transition: width 0.2s, height 0.2s, background 0.2s;
-            mix-blend-mode: screen;
-            will-change: transform;
-        }
-        .cursor-glow.active {
-            width: 80px;
-            height: 80px;
-            background: radial-gradient(circle, rgba(255,120,200,0.4) 0%, rgba(255,120,200,0) 70%);
         }
 
         /* Hilangkan scrollbar pada avatar container */
@@ -563,7 +545,7 @@
     </footer>
 </div>
 
-<div class="cursor-glow" id="cursorGlow"></div>
+<audio id="bgmAudio" loop preload="auto" aria-hidden="true"></audio>
 <div id="vtuberSubtitle" class="vtuber-subtitle"></div>
 <div id="vtuberPttHint" class="vtuber-ptt-hint">Tahan <kbd>Space</kbd> saat bicara (Indonesia / Jepang)</div>
 
@@ -624,6 +606,7 @@
 <script src="{{ url_for('static', filename='js/core/affection-engine.js') }}"></script>
 <script src="{{ url_for('static', filename='js/core/system-awareness.js') }}"></script>
 <script src="{{ url_for('static', filename='js/core/asset-manager.js') }}"></script>
+<script src="{{ url_for('static', filename='js/premium-cursor.js') }}"></script>
 <script src="{{ url_for('static', filename='js/wow-ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 <script src="{{ url_for('static', filename='js/wa-call.js') }}"></script>
@@ -643,7 +626,7 @@
 <script src="{{ url_for('static', filename='vendor/live2d/cubism4.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/live2d.js') }}"></script>
 
-<!-- ===== TAMBAHAN SCRIPT: KURSOR & TANGGAL (cuaca di-handle main.js) ===== -->
+<!-- ===== TAMBAHAN SCRIPT: TANGGAL (cuaca di-handle main.js) ===== -->
 <script>
 (function() {
     'use strict';
@@ -678,42 +661,6 @@
         updateDate();
         setInterval(updateDate, 60000);
     })();
-
-    // ---- Kursor Glow ----
-    (function() {
-        var glow = document.getElementById('cursorGlow');
-        if (!glow) return;
-        var mouseX = -100, mouseY = -100;
-        var currentX = -100, currentY = -100;
-
-        document.addEventListener('mousemove', function(e) {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-        });
-
-        function animateGlow() {
-            var diffX = mouseX - currentX;
-            var diffY = mouseY - currentY;
-            currentX += diffX * 0.15;
-            currentY += diffY * 0.15;
-            glow.style.left = currentX + 'px';
-            glow.style.top = currentY + 'px';
-            requestAnimationFrame(animateGlow);
-        }
-
-        var interactive = document.querySelectorAll('button, input, .action-btn, .switch-btn, .avatar, .chat-cta, .fab-chat');
-        for (var i = 0; i < interactive.length; i++) {
-            var el = interactive[i];
-            el.addEventListener('mouseenter', function() { glow.classList.add('active'); });
-            el.addEventListener('mouseleave', function() { glow.classList.remove('active'); });
-        }
-
-        animateGlow();
-        document.addEventListener('mouseleave', function() { glow.style.opacity = '0'; });
-        document.addEventListener('mouseenter', function() { glow.style.opacity = '1'; });
-    })();
-
-    console.log('Efek kursor aktif, cuaca di-handle oleh main.js');
 })();
 </script>
 

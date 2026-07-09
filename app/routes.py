@@ -293,6 +293,21 @@ def register_routes(app):
             }
         })
 
+    @app.route("/api/bgm/catalog", methods=["GET"])
+    def bgm_catalog():
+        """Scan static/music for available BGM tracks."""
+        music_dir = os.path.join(app.static_folder, "music")
+        tracks = []
+        if os.path.isdir(music_dir):
+            for name in sorted(os.listdir(music_dir)):
+                lower = name.lower()
+                if lower.endswith((".mp3", ".ogg", ".wav", ".m4a", ".flac")):
+                    tracks.append({
+                        "file": name,
+                        "url": f"/static/music/{name}",
+                    })
+        return jsonify({"tracks": tracks})
+
     @app.route("/tts", methods=["POST"])
     def tts():
         data = request.get_json(silent=True) or {}

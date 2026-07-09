@@ -1,0 +1,246 @@
+/* ==========================================
+   PREMIUM CURSOR — theme-aware luxury effects
+   ========================================== */
+
+body.premium-cursor-on,
+body.premium-cursor-on button,
+body.premium-cursor-on a,
+body.premium-cursor-on .action-btn {
+    cursor: none !important;
+}
+
+body.premium-cursor-on input,
+body.premium-cursor-on textarea,
+body.premium-cursor-on select {
+    cursor: text !important;
+}
+
+.premium-cursor {
+    position: fixed;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 10000;
+    mix-blend-mode: screen;
+}
+
+.pc-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    will-change: transform;
+}
+
+.pc-core {
+    width: 8px;
+    height: 8px;
+    margin: -4px 0 0 -4px;
+    border-radius: 50%;
+    background: var(--pc-core, #fff);
+    box-shadow:
+        0 0 12px var(--pc-primary, #ff6b8a),
+        0 0 24px var(--pc-secondary, #c4b5fd);
+    transition: width 0.2s ease, height 0.2s ease, margin 0.2s ease, box-shadow 0.35s ease;
+}
+
+.pc-ring {
+    width: 36px;
+    height: 36px;
+    margin: -18px 0 0 -18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--pc-primary, rgba(255, 107, 138, 0.55));
+    box-shadow:
+        0 0 20px var(--pc-primary, rgba(255, 107, 138, 0.25)),
+        inset 0 0 12px var(--pc-secondary, rgba(196, 181, 253, 0.15));
+    transition: width 0.25s ease, height 0.25s ease, margin 0.25s ease, border-color 0.35s ease;
+    animation: pcRingSpin 8s linear infinite;
+}
+
+.pc-glow {
+    width: 56px;
+    height: 56px;
+    margin: -28px 0 0 -28px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        var(--pc-glow-inner, rgba(255, 107, 138, 0.35)) 0%,
+        var(--pc-glow-outer, rgba(196, 181, 253, 0)) 72%
+    );
+    transition: width 0.3s ease, height 0.3s ease, margin 0.3s ease, background 0.4s ease;
+    filter: blur(2px);
+}
+
+.premium-cursor.is-hover .pc-core {
+    width: 5px;
+    height: 5px;
+    margin: -2.5px 0 0 -2.5px;
+}
+
+.premium-cursor.is-hover .pc-ring {
+    width: 52px;
+    height: 52px;
+    margin: -26px 0 0 -26px;
+    border-width: 2px;
+    animation-duration: 3s;
+}
+
+.premium-cursor.is-hover .pc-glow {
+    width: 88px;
+    height: 88px;
+    margin: -44px 0 0 -44px;
+}
+
+.premium-cursor.is-click .pc-ring {
+    width: 28px;
+    height: 28px;
+    margin: -14px 0 0 -14px;
+}
+
+.pc-spark {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9998;
+    border-radius: 50%;
+    animation: pcSparkFade 0.7s ease-out forwards;
+}
+
+.pc-trail-dot {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9997;
+    border-radius: 50%;
+    animation: pcTrailFade 0.55s ease-out forwards;
+}
+
+.pc-click-burst {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--pc-primary, #ff6b8a);
+    animation: pcBurst 0.65s ease-out forwards;
+}
+
+@keyframes pcRingSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pcSparkFade {
+    0% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+}
+
+@keyframes pcTrailFade {
+    0% { opacity: 0.45; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+}
+
+@keyframes pcBurst {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(var(--bx), var(--by)) scale(0); }
+}
+
+/* Theme palettes */
+body.cursor-theme-morning {
+    --pc-primary: rgba(255, 200, 120, 0.85);
+    --pc-secondary: rgba(255, 236, 179, 0.6);
+    --pc-glow-inner: rgba(255, 210, 130, 0.4);
+    --pc-core: #fff8e7;
+}
+
+body.cursor-theme-afternoon {
+    --pc-primary: rgba(120, 190, 255, 0.85);
+    --pc-secondary: rgba(180, 220, 255, 0.55);
+    --pc-glow-inner: rgba(100, 180, 255, 0.38);
+    --pc-core: #eef6ff;
+}
+
+body.cursor-theme-evening {
+    --pc-primary: rgba(255, 140, 90, 0.9);
+    --pc-secondary: rgba(255, 190, 120, 0.55);
+    --pc-glow-inner: rgba(255, 120, 80, 0.42);
+    --pc-core: #fff0e8;
+}
+
+body.cursor-theme-night {
+    --pc-primary: rgba(180, 140, 255, 0.85);
+    --pc-secondary: rgba(255, 107, 138, 0.45);
+    --pc-glow-inner: rgba(150, 120, 255, 0.38);
+    --pc-core: #f0ecff;
+}
+
+body.cursor-theme-spring {
+    --pc-primary: rgba(255, 150, 200, 0.85);
+    --pc-secondary: rgba(230, 180, 255, 0.55);
+    --pc-glow-inner: rgba(255, 170, 210, 0.4);
+    --pc-core: #fff0f8;
+}
+
+body.cursor-theme-summer {
+    --pc-primary: rgba(255, 210, 80, 0.9);
+    --pc-secondary: rgba(255, 160, 60, 0.5);
+    --pc-glow-inner: rgba(255, 200, 60, 0.38);
+    --pc-core: #fffbe6;
+}
+
+body.cursor-theme-autumn {
+    --pc-primary: rgba(255, 150, 60, 0.88);
+    --pc-secondary: rgba(220, 100, 50, 0.5);
+    --pc-glow-inner: rgba(255, 130, 50, 0.4);
+    --pc-core: #fff3e6;
+}
+
+body.cursor-theme-winter {
+    --pc-primary: rgba(180, 220, 255, 0.9);
+    --pc-secondary: rgba(220, 240, 255, 0.6);
+    --pc-glow-inner: rgba(200, 230, 255, 0.45);
+    --pc-core: #f8fcff;
+}
+
+body.cursor-theme-rain {
+    --pc-primary: rgba(100, 180, 255, 0.85);
+    --pc-secondary: rgba(140, 200, 255, 0.5);
+    --pc-glow-inner: rgba(80, 160, 240, 0.4);
+    --pc-core: #e8f4ff;
+}
+
+body.cursor-char-sishin {
+    --pc-primary: rgba(74, 222, 128, 0.88);
+    --pc-secondary: rgba(134, 239, 172, 0.55);
+    --pc-glow-inner: rgba(52, 211, 153, 0.38);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pc-ring { animation: none; }
+    .pc-spark, .pc-trail-dot, .pc-click-burst { display: none !important; }
+}
+
+.bgm-toast {
+    position: fixed;
+    bottom: 88px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    z-index: 9990;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: rgba(255, 255, 255, 0.92);
+    background: linear-gradient(135deg, rgba(255, 107, 138, 0.22), rgba(150, 120, 255, 0.18));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.bgm-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}

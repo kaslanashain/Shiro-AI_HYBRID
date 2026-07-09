@@ -508,6 +508,9 @@ function syncCharacterUI(char, options) {
     if (window.WowUI && typeof WowUI.onCharacterChange === 'function') {
         WowUI.onCharacterChange(char);
     }
+    if (window.PremiumCursor && typeof PremiumCursor.setCharacter === 'function') {
+        PremiumCursor.setCharacter(char);
+    }
 
     if (!options.skipState) {
         if (window.CharacterState) {
@@ -952,6 +955,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof bootHomeLive2D === 'function') bootHomeLive2D();
         });
     }
+
+    if (typeof autoStartBGM === 'function') {
+        setTimeout(autoStartBGM, 600);
+    }
+
     console.log('Shiro AI initialized.');
 });
 
@@ -1228,6 +1236,9 @@ function setTheme(theme) {
     }
 
     if (typeof syncWACallTheme === 'function') syncWACallTheme(theme);
+    if (window.PremiumCursor && typeof PremiumCursor.setTheme === 'function') {
+        PremiumCursor.setTheme(theme);
+    }
 }
 
 // ==========================================
@@ -1236,16 +1247,17 @@ function setTheme(theme) {
 function togglePlaylist() {
     var menu = document.getElementById('playlistMenu');
     if (!menu) return;
-    menu.classList.toggle('active');
 
-    if (menu.classList.contains('active')) {
+    loadBgmCatalog().finally(function() {
+        menu.classList.toggle('active');
+        if (!menu.classList.contains('active')) return;
+
         var container = menu.querySelector('.playlist-items');
         if (!container) {
             container = document.createElement('div');
             container.className = 'playlist-items';
             menu.appendChild(container);
         }
-        // KOSONGKAN DAHULU AGAR TIDAK DUPLIKAT
         container.innerHTML = '';
         for (var i = 0; i < bgmList.length; i++) {
             var item = document.createElement('div');
@@ -1260,24 +1272,88 @@ function togglePlaylist() {
             })(i);
             container.appendChild(item);
         }
-    }
+    });
 }
 
-function playMusic(index) {
-    bgmIndex = index;
+function loadBgmCatalog() {
+    return fetch('/api/bgm/catalog')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var tracks = (data && data.tracks) || [];
+            if (!tracks.length) return false;
+            bgmList = tracks.map(function(t) { return t.file; });
+            bgmNames = tracks.map(function(t, i) {
+                var base = t.file.replace(/\.[^.]+$/, '').replace(/_/g, ' ');
+                return base.charAt(0).toUpperCase() + base.slice(1) || ('Lagu ' + (i + 1));
+            });
+            return true;
+        })
+        .catch(function() { return false; });
+}
+
+function ensureBgmAudio() {
     var audio = document.getElementById('bgmAudio');
     if (!audio) {
-        var newAudio = document.createElement('audio');
-        newAudio.id = 'bgmAudio';
-        newAudio.loop = true;
-        newAudio.volume = 0.15;
-        document.body.appendChild(newAudio);
-        audio = newAudio;
+        audio = document.createElement('audio');
+        audio.id = 'bgmAudio';
+        audio.loop = true;
+        audio.preload = 'auto';
+        document.body.appendChild(audio);
     }
+    audio.volume = 0.18;
+    return audio;
+}
+
+function autoStartBGM() {
+    if (localStorage.getItem('shiro_bgm_autostart') === 'off') return;
+
+    loadBgmCatalog().then(function(hasTracks) {
+        if (!hasTracks && (!bgmList || !bgmList.length)) return;
+
+        var saved = parseInt(localStorage.getItem('shiro_bgm_index') || '0', 10);
+        if (isNaN(saved) || saved < 0) saved = 0;
+        if (saved >= bgmList.length) saved = 0;
+        bgmIndex = saved;
+
+        function tryPlay() {
+            playMusic(bgmIndex, { silentFail: true, autoStart: true });
+        }
+
+        tryPlay();
+
+        if (!window.__shiroBgmGestureBound) {
+            window.__shiroBgmGestureBound = true;
+            var unlock = function() {
+                var audio = document.getElementById('bgmAudio');
+                if (audio && audio.paused && localStorage.getItem('shiro_bgm_autostart') !== 'off') {
+                    tryPlay();
+                }
+                document.removeEventListener('click', unlock, true);
+                document.removeEventListener('keydown', unlock, true);
+                document.removeEventListener('mousemove', unlock, true);
+            };
+            document.addEventListener('click', unlock, true);
+            document.addEventListener('keydown', unlock, true);
+            document.addEventListener('mousemove', unlock, { once: true, capture: true });
+        }
+    });
+}
+
+function playMusic(index, options) {
+    options = options || {};
+    if (!bgmList || !bgmList.length || index < 0 || index >= bgmList.length) {
+        return Promise.reject(new Error('invalid bgm index'));
+    }
+    bgmIndex = index;
+    localStorage.setItem('shiro_bgm_index', String(index));
+
+    var audio = ensureBgmAudio();
+    if (!audio) return Promise.reject(new Error('no audio'));
 
     audio.src = '/static/music/' + bgmList[index];
     audio.load();
-    audio.play()
+
+    return audio.play()
         .then(function() {
             var btn = document.getElementById('bgmBtn');
             if (btn) {
@@ -1289,14 +1365,21 @@ function playMusic(index) {
                 items[i].classList.remove('active');
             }
             if (items[index]) items[index].classList.add('active');
-            // Tutup playlist setelah memilih
             var menu = document.getElementById('playlistMenu');
             if (menu) menu.classList.remove('active');
             startBgmServerWatch();
+            if (options.autoStart && typeof showBgmToast === 'function') {
+                showBgmToast('♪ Memutar ' + (bgmNames[index] || bgmList[index]));
+            } else if (!options.autoStart && typeof showBgmToast === 'function') {
+                showBgmToast('♪ ' + (bgmNames[index] || bgmList[index]));
+            }
         })
-        .catch(function() {
-            console.warn('BGM file missing:', bgmList[index]);
-            alert('File musik belum ada. Taruh ' + bgmList[index] + ' di folder static/music/');
+        .catch(function(err) {
+            if (!options.silentFail) {
+                console.warn('BGM file missing:', bgmList[index]);
+                alert('File musik belum ada. Taruh ' + bgmList[index] + ' di folder static/music/');
+            }
+            return Promise.reject(err);
         });
 }
 
@@ -1390,6 +1473,24 @@ function stopBgmServerWatch() {
 window.stopBGM = stopBGM;
 window.stopAllAppAudio = stopAllAppAudio;
 window.broadcastStopAudio = broadcastStopAudio;
+window.autoStartBGM = autoStartBGM;
+window.loadBgmCatalog = loadBgmCatalog;
+
+function showBgmToast(text) {
+    var el = document.getElementById('bgmToast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'bgmToast';
+        el.className = 'bgm-toast';
+        document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.add('visible');
+    clearTimeout(showBgmToast._timer);
+    showBgmToast._timer = setTimeout(function() {
+        el.classList.remove('visible');
+    }, 3200);
+}
 
 window.addEventListener('pagehide', broadcastStopAudio);
 window.addEventListener('beforeunload', broadcastStopAudio);
