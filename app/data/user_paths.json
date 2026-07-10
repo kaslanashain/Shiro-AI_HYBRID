@@ -1,6 +1,5 @@
 {
   "scan_roots": [
-    "%USERPROFILE%\\Desktop",
     "%USERPROFILE%\\Documents",
     "%USERPROFILE%\\Downloads",
     "%USERPROFILE%\\Videos",
@@ -9,5 +8,6 @@
   ],
   "extra_folders": [],
   "max_files_per_root": 800,
-  "max_depth": 4
+  "max_depth": 4,
+  "_note": "Desktop sengaja TIDAK di-scan agar shortcut di Desktop tidak terganggu."
 }

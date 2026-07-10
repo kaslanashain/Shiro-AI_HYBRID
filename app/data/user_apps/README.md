@@ -4,9 +4,13 @@ Shiro dan Sishin bisa membuka software, folder, dan file di laptop Anda lewat ch
 
 ## Cara menambah software baru (setelah install)
 
-### Opsi 1 — Taruh shortcut (paling mudah)
+### Opsi 1 — Taruh shortcut (COPY, jangan pindahkan!)
+
+> **PENTING:** **Jangan pindahkan** shortcut dari Desktop ke sini. **Copy** saja (Ctrl+C → Ctrl+V).  
+> Shiro AI **tidak pernah menghapus** shortcut Desktop — jika shortcut hilang, restore dari Recycle Bin atau buat ulang.
+
 1. Buka folder **`tambah_di_sini/`** di sini
-2. Copy shortcut (`.lnk`) aplikasi baru ke folder itu
+2. **Copy** (bukan pindah) shortcut (`.lnk`) aplikasi ke folder itu
 3. Restart server Shiro AI **atau** ketik di chat: `scan ulang aplikasi`
 4. Ucapkan: `buka [nama aplikasi]`
 
@@ -43,11 +47,11 @@ tolong buka spotify dong
 ## Scan otomatis
 
 Saat server jalan, Shiro AI memindai:
-- Menu Start Windows
-- Desktop
-- Registry aplikasi terpasang
-- Folder Desktop, Documents, Downloads (lihat `user_paths.json`)
-- Semua isi folder `tambah_di_sini/` dan `shortcuts/`
+- Registry aplikasi terpasang (Windows App Paths)
+- Folder `tambah_di_sini/` dan `shortcuts/` **di dalam project saja**
+- Documents, Downloads, dll. (bukan Desktop)
+
+**Desktop tidak pernah di-scan atau disentuh** — shortcut Cursor, Chrome, dll. aman.
 
 Cache scan disimpan lokal (tidak di-commit ke Git).
 

@@ -21,12 +21,17 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from app.app_catalog import (
+    get_launch_registry,
     get_merged_registry,
     list_catalog_items,
     rescan_catalog,
     resolve_catalog_key,
     resolve_catalog_path,
+    _is_allowed_shortcut_path,
 )
+
+_CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+_DETACHED_PROCESS = 0x00000008 if sys.platform == "win32" else 0
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +131,8 @@ def _expand_path(path: str) -> str:
 
 
 def _load_app_registry() -> dict[str, dict[str, Any]]:
-    return get_merged_registry()
+    """Launch-safe registry — never scans or touches Desktop shortcuts."""
+    return get_launch_registry()
 
 
 def _build_alias_index(registry: dict[str, dict]) -> dict[str, str]:
@@ -187,7 +193,7 @@ def parse_launch_intent(text: str, karakter: str = "shiro") -> Optional[LaunchIn
 
 def resolve_app_key(app_query: str, registry: Optional[dict] = None) -> tuple[Optional[str], float]:
     """Map user-spoken app name to registry key (exact + fuzzy)."""
-    return resolve_catalog_key(app_query, registry or get_merged_registry())
+    return resolve_catalog_key(app_query, registry or get_launch_registry())
 
 
 def _load_registry_app_paths() -> dict[str, str]:
@@ -280,23 +286,36 @@ def _is_blocked(entry: dict[str, Any], exe_path: str) -> bool:
 def _spawn_exe(exe_path: str, entry: Optional[dict[str, Any]] = None) -> None:
     entry = entry or {}
     item_type = entry.get("type", "app")
+
+    # Launch .lnk only from our user_apps folder (never Desktop shortcuts)
+    if exe_path.lower().endswith(".lnk"):
+        if not _is_allowed_shortcut_path(exe_path):
+            raise OSError("Shortcut eksternal (Desktop) tidak boleh diluncurkan langsung — gunakan path .exe")
+        os.startfile(exe_path)  # noqa: S606 — read-only open, does not modify shortcut
+        return
+
     if item_type in ("file", "folder") or os.path.isdir(exe_path):
         os.startfile(exe_path)  # noqa: S606
         return
     if entry.get("use_startfile") or exe_path.startswith("ms-"):
         os.startfile(exe_path)  # noqa: S606
         return
+
     args = [exe_path]
     extra = entry.get("launch_args") or []
     if extra:
         args.extend(extra)
+    work_dir = os.path.dirname(exe_path) if os.path.isfile(exe_path) else None
+    creationflags = _CREATE_NO_WINDOW | _DETACHED_PROCESS if sys.platform == "win32" else 0
     subprocess.Popen(  # noqa: S603
         args,
         shell=False,
+        cwd=work_dir,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         close_fds=True,
+        creationflags=creationflags,
     )
 
 
@@ -337,7 +356,7 @@ def launch_application(app_query: str) -> LaunchResult:
             ok=False,
             status="not_found",
             app_label=app_label,
-            message=f"Aplikasi '{app_query}' tidak ditemukan di PC ini. Taruh shortcut di app/data/user_apps/tambah_di_sini/",
+            message=f"Aplikasi '{app_query}' tidak ditemukan. Tambah path .exe di app/data/user_apps/custom_apps.json (jangan pindahkan shortcut Desktop).",
             meta={"confidence": confidence},
         )
 

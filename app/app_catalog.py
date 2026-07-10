@@ -31,10 +31,14 @@ _USER_PATHS = _DATA_DIR / "user_paths.json"
 _CACHE_FILE = _USER_APPS_DIR / "_discovered_cache.json"
 
 _CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+_DETACHED_PROCESS = 0x00000008 if sys.platform == "win32" else 0
 _CACHE_TTL_SEC = 3600
+_LAUNCH_CACHE_TTL_SEC = 300
 
 _merged_cache: Optional[dict[str, dict[str, Any]]] = None
 _merged_cache_at: float = 0.0
+_launch_registry_cache: Optional[dict[str, dict[str, Any]]] = None
+_launch_registry_at: float = 0.0
 
 
 def _expand_path(path: str) -> str:
@@ -72,8 +76,33 @@ def _slug_key(name: str, prefix: str = "") -> str:
     return f"{prefix}{base}" if prefix else base
 
 
+def _is_desktop_path(path: str) -> bool:
+    """True if path is on user/public/OneDrive Desktop — never scan or touch shortcuts here."""
+    p = os.path.normcase(os.path.abspath(_expand_path(path)))
+    for env in (
+        r"%USERPROFILE%\Desktop",
+        r"%PUBLIC%\Desktop",
+        r"%OneDrive%\Desktop",
+        r"%OneDriveConsumer%\Desktop",
+    ):
+        d = os.path.normcase(_expand_path(env))
+        if d and (p == d or p.startswith(d + os.sep)):
+            return True
+    return False
+
+
+def _is_allowed_shortcut_path(lnk_path: str) -> bool:
+    """Only resolve .lnk inside our user_apps folder — never Desktop/Start Menu."""
+    abs_lnk = os.path.normcase(os.path.abspath(_expand_path(lnk_path)))
+    allowed = os.path.normcase(os.path.abspath(str(_USER_APPS_DIR)))
+    return abs_lnk.startswith(allowed + os.sep) or abs_lnk.startswith(allowed)
+
+
 def _resolve_lnk(lnk_path: str) -> Optional[str]:
     if sys.platform != "win32" or not lnk_path.lower().endswith(".lnk"):
+        return None
+    if not _is_allowed_shortcut_path(lnk_path):
+        logger.debug("Skip external shortcut (desktop-safe policy): %s", lnk_path)
         return None
     try:
         escaped = lnk_path.replace("'", "''")
@@ -166,6 +195,10 @@ def _is_document(path: str) -> bool:
 
 
 def _scan_start_menu() -> dict[str, dict[str, Any]]:
+    """
+    Read Start Menu shortcuts only (NOT Desktop).
+    Desktop shortcuts are never scanned — prevents shortcut removal/corruption.
+    """
     out: dict[str, dict[str, Any]] = {}
     if sys.platform != "win32":
         return out
@@ -173,14 +206,15 @@ def _scan_start_menu() -> dict[str, dict[str, Any]]:
     roots = [
         _expand_path(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs"),
         _expand_path(r"%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs"),
-        _expand_path(r"%USERPROFILE%\Desktop"),
     ]
     seen_targets: set[str] = set()
 
     for root in roots:
-        if not os.path.isdir(root):
+        if not os.path.isdir(root) or _is_desktop_path(root):
             continue
         for dirpath, _, filenames in os.walk(root):
+            if _is_desktop_path(dirpath):
+                continue
             for name in filenames:
                 if not name.lower().endswith(".lnk"):
                     continue
@@ -208,7 +242,6 @@ def _scan_start_menu() -> dict[str, dict[str, Any]]:
 def _load_user_paths_config() -> dict[str, Any]:
     default = {
         "scan_roots": [
-            "%USERPROFILE%\\Desktop",
             "%USERPROFILE%\\Documents",
             "%USERPROFILE%\\Downloads",
         ],
@@ -231,9 +264,11 @@ def _index_files_and_folders() -> dict[str, dict[str, Any]]:
     max_files = int(cfg.get("max_files_per_root") or 600)
     max_depth = int(cfg.get("max_depth") or 4)
 
+    skip_ext = {".lnk", ".url", ".ini", ".desktop"}
+
     for raw_root in roots:
         root = _expand_path(str(raw_root))
-        if not os.path.isdir(root):
+        if not os.path.isdir(root) or _is_desktop_path(root):
             continue
         count = 0
         root_norm = os.path.normcase(root)
@@ -258,8 +293,10 @@ def _index_files_and_folders() -> dict[str, dict[str, Any]]:
             for fn in filenames:
                 if count >= max_files:
                     break
+                if Path(fn).suffix.lower() in skip_ext:
+                    continue
                 full = os.path.join(dirpath, fn)
-                if not os.path.isfile(full):
+                if not os.path.isfile(full) or _is_desktop_path(full):
                     continue
                 count += 1
                 stem = Path(fn).stem
@@ -276,6 +313,44 @@ def _index_files_and_folders() -> dict[str, dict[str, Any]]:
                 )
 
     return out
+
+
+def get_launch_registry(*, force_refresh: bool = False) -> dict[str, dict[str, Any]]:
+    """
+    Safe app registry for launching — never scans Desktop or external shortcuts.
+    Uses: built-in list + Windows registry + user JSON + shortcuts in user_apps/ only.
+    """
+    global _launch_registry_cache, _launch_registry_at
+    if force_refresh:
+        _launch_registry_cache = None
+        _launch_registry_at = 0.0
+    now = time.time()
+    if _launch_registry_cache is not None and (now - _launch_registry_at) < _LAUNCH_CACHE_TTL_SEC:
+        return _launch_registry_cache
+
+    merged: dict[str, dict[str, Any]] = {}
+    builtin = _load_json(_BUILTIN_APPS, {})
+    if isinstance(builtin, dict):
+        for key, entry in builtin.items():
+            if isinstance(entry, dict):
+                e = dict(entry)
+                e.setdefault("type", "app")
+                e.setdefault("source", "builtin")
+                merged[key] = e
+
+    for source_map in (
+        _load_user_json_files(),
+        _load_shortcuts_from_dirs(),
+        _discovered_from_registry(),
+    ):
+        for key, entry in source_map.items():
+            if key not in merged:
+                merged[key] = entry
+
+    _launch_registry_cache = merged
+    _launch_registry_at = now
+    logger.info("Launch registry loaded: %d apps (desktop-safe)", len(merged))
+    return merged
 
 
 def _load_registry_paths() -> dict[str, str]:
@@ -360,7 +435,6 @@ def scan_catalog(*, use_cache: bool = True) -> dict[str, dict[str, Any]]:
         _load_user_json_files(),
         _load_shortcuts_from_dirs(),
         _discovered_from_registry(),
-        _scan_start_menu(),
         _index_files_and_folders(),
     ):
         for key, entry in source_map.items():
@@ -380,9 +454,11 @@ def scan_catalog(*, use_cache: bool = True) -> dict[str, dict[str, Any]]:
 
 
 def invalidate_catalog_cache() -> None:
-    global _merged_cache, _merged_cache_at
+    global _merged_cache, _merged_cache_at, _launch_registry_cache, _launch_registry_at
     _merged_cache = None
     _merged_cache_at = 0.0
+    _launch_registry_cache = None
+    _launch_registry_at = 0.0
     try:
         if _CACHE_FILE.is_file():
             _CACHE_FILE.unlink()
@@ -404,6 +480,7 @@ def get_merged_registry(*, force_rescan: bool = False) -> dict[str, dict[str, An
 
 def rescan_catalog() -> dict[str, Any]:
     invalidate_catalog_cache()
+    get_launch_registry(force_refresh=True)
     items = get_merged_registry(force_rescan=True)
     apps = sum(1 for e in items.values() if e.get("type", "app") == "app")
     files = sum(1 for e in items.values() if e.get("type") == "file")
