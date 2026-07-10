@@ -42,19 +42,23 @@ def detect_input_language(text):
     return "id"
 
 
-def validasi_respon_teks(teks, konteks):
+def validasi_respon_teks(teks, konteks, max_chars=550):
     if not teks:
         return False
+    konteks_lower = konteks.lower()
+    world_known = any(
+        k in konteks_lower
+        for k in ("wib", "cuaca", "informasi dunia", "kabar terkini", "tahun 20")
+    )
     for angka in re.findall(r"\b\d{1,4}\b", teks):
-        if angka not in konteks and len(angka) > 2:
+        if angka not in konteks and len(angka) > 2 and not world_known:
             return False
     pola_fakta = ["tahun", "tanggal", "berat", "tinggi", "umur", "jarak", "kecepatan"]
     teks_lower = teks.lower()
-    konteks_lower = konteks.lower()
     if any(p in teks_lower for p in pola_fakta):
-        if not any(p in konteks_lower for p in pola_fakta):
+        if not any(p in konteks_lower for p in pola_fakta) and not world_known:
             return False
-    if len(teks) > 400:
+    if len(teks) > max_chars:
         return False
     return True
 

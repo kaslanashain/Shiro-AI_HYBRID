@@ -17,7 +17,7 @@ import logging
 import re
 from typing import Any, Optional
 
-from app import config
+from app.current_context import format_world_context_block
 from app.utils import parse_json_response, sync_text_and_voice
 
 logger = logging.getLogger(__name__)
@@ -101,6 +101,7 @@ def build_vision_system_prompt(character_name: str, affection_level: int) -> str
 
     return (
         f"{persona['role']}\n\n"
+        f"{format_world_context_block(char)}"
         f"AFeksi saat ini: {level}/100\n"
         f"Intimasi percakapan: {style}\n"
         f"{persona['examples']}\n\n"

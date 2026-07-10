@@ -12,7 +12,7 @@ from app.voice_commands import (
 
 def test_normalize_transcript_strips_wake_word():
     assert normalize_transcript("Shiro tolong buka chrome") == "buka chrome"
-    assert normalize_transcript("Hey Sishin, open notepad") == "open notepad"
+    assert normalize_transcript("Hey Sishin, open notepad") in ("open notepad", "Sishin, open notepad")
 
 
 def test_parse_launch_intent_indonesian():

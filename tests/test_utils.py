@@ -35,7 +35,8 @@ def test_sync_text_and_voice_uses_suara():
 
 
 def test_validasi_respon_teks_rejects_long():
-    assert validasi_respon_teks("x" * 301, "") is False
+    assert validasi_respon_teks("x" * 301, "", max_chars=220) is False
+    assert validasi_respon_teks("x" * 400, "", max_chars=550) is True
 
 
 def test_resolve_character_prefers_keyword():

@@ -21,12 +21,14 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from app.app_catalog import (
+    find_desktop_item,
     get_launch_registry,
     get_merged_registry,
     list_catalog_items,
     rescan_catalog,
     resolve_catalog_key,
     resolve_catalog_path,
+    resolve_launch_path,
     _is_allowed_shortcut_path,
 )
 
@@ -275,7 +277,7 @@ def _resolve_registry_exe(app_query: str) -> tuple[Optional[str], float]:
 
 
 def _resolve_executable(entry: dict[str, Any]) -> Optional[str]:
-    return resolve_catalog_path(entry)
+    return resolve_launch_path(entry)
 
 
 def _is_blocked(entry: dict[str, Any], exe_path: str) -> bool:
@@ -287,11 +289,10 @@ def _spawn_exe(exe_path: str, entry: Optional[dict[str, Any]] = None) -> None:
     entry = entry or {}
     item_type = entry.get("type", "app")
 
-    # Launch .lnk only from our user_apps folder (never Desktop shortcuts)
     if exe_path.lower().endswith(".lnk"):
         if not _is_allowed_shortcut_path(exe_path):
-            raise OSError("Shortcut eksternal (Desktop) tidak boleh diluncurkan langsung — gunakan path .exe")
-        os.startfile(exe_path)  # noqa: S606 — read-only open, does not modify shortcut
+            raise OSError("Shortcut tidak diizinkan — hanya Desktop atau folder user_apps Shiro AI")
+        os.startfile(exe_path)  # noqa: S606 — read-only, tidak mengubah shortcut
         return
 
     if item_type in ("file", "folder") or os.path.isdir(exe_path):
@@ -300,6 +301,9 @@ def _spawn_exe(exe_path: str, entry: Optional[dict[str, Any]] = None) -> None:
     if entry.get("use_startfile") or exe_path.startswith("ms-"):
         os.startfile(exe_path)  # noqa: S606
         return
+
+    if not os.path.isfile(exe_path):
+        raise OSError(f"File tidak ditemukan: {exe_path}")
 
     args = [exe_path]
     extra = entry.get("launch_args") or []
@@ -352,11 +356,23 @@ def launch_application(app_query: str) -> LaunchResult:
                 app_key = os.path.splitext(os.path.basename(reg_path))[0].lower()
 
     if not exe_path:
+        desk_key, desk_entry, desk_conf = find_desktop_item(app_query)
+        if desk_entry:
+            entry = desk_entry
+            app_key = desk_key or app_key
+            app_label = desk_entry.get("label") or app_label
+            exe_path = _resolve_executable(desk_entry)
+            confidence = max(confidence, desk_conf)
+
+    if not exe_path:
         return LaunchResult(
             ok=False,
             status="not_found",
             app_label=app_label,
-            message=f"Aplikasi '{app_query}' tidak ditemukan. Tambah path .exe di app/data/user_apps/custom_apps.json (jangan pindahkan shortcut Desktop).",
+            message=(
+                f"Aplikasi '{app_query}' tidak ditemukan. "
+                "Pastikan shortcut ada di Desktop atau jalankan rescan dari menu Shiro AI."
+            ),
             meta={"confidence": confidence},
         )
 

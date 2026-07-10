@@ -14,6 +14,8 @@ from app.db import (
     muat_preferensi, simpan_preferensi, get_last_chat_time, log_event, is_event_triggered_today
 )
 from app.learning import format_learnings_block, schedule_learning
+from app.current_context import format_world_context_block, get_now, world_context_for_validation
+from app.response_length import decide_response_length, format_length_instruction
 from app.utils import (
     build_konteks,
     cache_get,
@@ -63,7 +65,7 @@ CHARACTER_PROFILES = {
         "calls": "- Panggil user dengan 'Sayang' atau 'Kakak Shin'\n- JANGAN menyebut nama 'Shiro' untuk dirimu sendiri dalam jawaban",
         "style": (
             "- Gunakan kata-kata manja seperti 'aku kangen', 'aku sayang', 'aku rindu'\n"
-            "- Jawab 1-3 kalimat pendek yang penuh perasaan, natural seperti obrolan santai\n"
+            "- Sesuaikan panjang jawaban dengan mode PANJANG RESPONS di prompt (pendek/sedang/panjang)\n"
             "- LANJUTKAN topik yang user bicarakan — jangan reset percakapan\n"
             "- Merujuk hal yang baru dibicarakan jika relevan\n"
             "- Pahami romaji (konnichiwa, arigatou, daisuki, sugoi, dll) dan tulisan Jepang\n"
@@ -97,7 +99,7 @@ CHARACTER_PROFILES = {
         "calls": "- Panggil user dengan 'Kak' atau 'Kak Shin'\n- JANGAN menyebut nama 'Sishin' untuk dirimu sendiri dalam jawaban",
         "style": (
             "- Gunakan kata-kata ceria seperti 'hore', 'yay', 'asik', 'main yuk', 'seru'\n"
-            "- Jawab 1-3 kalimat pendek penuh semangat, natural seperti anak kecil ngobrol\n"
+            "- Sesuaikan panjang jawaban dengan mode PANJANG RESPONS di prompt (pendek/sedang/panjang)\n"
             "- LANJUTKAN topik yang Kak bicarakan — jangan reset percakapan\n"
             "- Tanyakan balik atau ajak main jika cocok dengan konteks\n"
             "- Pahami romaji (konnichiwa, arigatou, sugoi, daisuki, dll) dan tulisan Jepang\n"
@@ -265,7 +267,9 @@ def _lang_instruction(karakter, input_lang):
         "atau tulisan Jepang, pahami dan balas natural (boleh mix manja JP+ID)."
     )
 
-def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user="", user_id=None):
+def build_system_prompt(
+    karakter, konteks, score, fakta_list, pesan_user="", user_id=None, length_mode="medium"
+):
     profile = CHARACTER_PROFILES[karakter]
     input_lang = detect_input_language(pesan_user or konteks)
     mood = _mood_prompt(profile, score)
@@ -281,14 +285,18 @@ def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user="", use
     learning_block = format_learnings_block(karakter, user_id)
     topik_block = f"TOPIK FAVORIT USER: {topik}\n" if topik else ""
     sibling_block = _build_sibling_context(karakter, pesan_user, score)
+    world_block = format_world_context_block(karakter)
+    length_block = format_length_instruction(length_mode, karakter)
 
     return (
         f"{profile['identity']} {mood}\n\n"
+        f"{world_block}"
+        f"{length_block}\n"
         f"{sibling_block}"
         "ATURAN PERCAKAPAN:\n"
         "- Jawab natural, nyambung dengan topik sebelumnya\n"
         "- Gunakan riwayat chat dan pembelajaran di bawah — jangan ulang hal yang sudah dibahas\n"
-        "- Respons singkat dan cocok untuk obrolan suara (VTuber)\n"
+        "- Ikuti mode PANJANG RESPONS — jangan selalu jawab pendek jika mode medium/panjang\n"
         "- Jangan keluar dari karakter\n"
         "- Jika user menyebut saudaramu, komentari sebagai dirimu sendiri — jangan ganti persona\n\n"
         f"RIWAYAT CHAT TERAKHIR:\n{konteks}\n\n"
@@ -308,7 +316,7 @@ def build_system_prompt(karakter, konteks, score, fakta_list, pesan_user="", use
 # CALL LLM (HYBRID: Groq → Ollama)
 # ============================================================
 
-def _call_groq(messages, stream=False, on_token=None):
+def _call_groq(messages, stream=False, on_token=None, max_tokens=280):
     if not groq_client:
         return None
     try:
@@ -317,7 +325,7 @@ def _call_groq(messages, stream=False, on_token=None):
                 messages=messages,
                 model=GROQ_MODEL,
                 temperature=0.85,
-                max_tokens=320,
+                max_tokens=max_tokens,
                 stream=True,
             )
             full = ""
@@ -332,7 +340,7 @@ def _call_groq(messages, stream=False, on_token=None):
             messages=messages,
             model=GROQ_MODEL,
             temperature=0.85,
-            max_tokens=320,
+            max_tokens=max_tokens,
         )
         return {
             "message": {
@@ -343,10 +351,11 @@ def _call_groq(messages, stream=False, on_token=None):
         print(f"[WARN] Groq error: {e}")
         return None
 
-def _call_llm(messages, stream=False, on_token=None, karakter="shiro"):
+
+def _call_llm(messages, stream=False, on_token=None, karakter="shiro", max_tokens=280, ollama_predict=None):
     if GROQ_API_KEY and is_internet_available():
-        logger.info("[NET] Online: pakai Groq")
-        result = _call_groq(messages, stream=stream, on_token=on_token)
+        logger.info("[NET] Online: pakai Groq (max_tokens=%s)", max_tokens)
+        result = _call_groq(messages, stream=stream, on_token=on_token, max_tokens=max_tokens)
         if result:
             return result
         logger.warning("[WARN] Groq gagal, fallback ke Ollama")
@@ -359,6 +368,7 @@ def _call_llm(messages, stream=False, on_token=None, karakter="shiro"):
         karakter,
         stream=stream,
         on_token=on_token,
+        num_predict=ollama_predict,
     )
 
 
@@ -392,7 +402,16 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
     riwayat = muat_memori(user_id=user_id, karakter=karakter, limit=mem_limit)
     konteks = build_konteks(riwayat, limit=ctx_limit)
     fakta_list = muat_fakta(user_id)
-    cache_key = get_cache_key(pesan_user, konteks, karakter)
+    affection = status.get("affection", 50)
+    length_mode, length_meta = decide_response_length(
+        pesan_user, konteks, karakter, affection
+    )
+    world_validation = world_context_for_validation()
+    cache_key = get_cache_key(
+        pesan_user,
+        konteks + get_now().strftime("%Y-%m-%d %H") + length_mode,
+        karakter,
+    )
 
     cached = cache_get(cache_key)
     if cached:
@@ -400,6 +419,9 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
             "karakter": karakter,
             "status": status,
             "konteks": konteks,
+            "konteks_validasi": f"{konteks}\n{world_validation}",
+            "length_mode": length_mode,
+            "length_meta": length_meta,
             "profile": CHARACTER_PROFILES[karakter],
             "cached_result": cached[0],
             "messages": None,
@@ -407,7 +429,13 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
         }
 
     system_prompt = build_system_prompt(
-        karakter, konteks, status.get("affection", 50), fakta_list, pesan_user, user_id
+        karakter,
+        konteks,
+        affection,
+        fakta_list,
+        pesan_user,
+        user_id,
+        length_mode=length_mode,
     )
     riwayat_llm = riwayat[-llm_hist:] if len(riwayat) > llm_hist else riwayat
     messages = [{"role": "system", "content": system_prompt}] + riwayat_llm + [
@@ -418,6 +446,9 @@ def _prepare_chat(pesan_user, preferred_karakter=None, force_preferred=False):
         "karakter": karakter,
         "status": status,
         "konteks": konteks,
+        "konteks_validasi": f"{konteks}\n{world_validation}",
+        "length_mode": length_mode,
+        "length_meta": length_meta,
         "profile": CHARACTER_PROFILES[karakter],
         "cached_result": None,
         "messages": messages,
@@ -432,6 +463,7 @@ def jawab_shiro_stream(pesan_user, preferred_karakter=None, force_preferred=Fals
     karakter = ctx["karakter"]
     status = ctx["status"]
     konteks = ctx["konteks"]
+    konteks_validasi = ctx.get("konteks_validasi", konteks)
     profile = ctx["profile"]
 
     if ctx.get("cached_result"):
@@ -441,9 +473,22 @@ def jawab_shiro_stream(pesan_user, preferred_karakter=None, force_preferred=Fals
         return result, muat_status()
 
     try:
-        response = _call_llm(ctx["messages"], stream=True, on_token=on_token, karakter=karakter)
+        length_meta = ctx.get("length_meta") or {}
+        response = _call_llm(
+            ctx["messages"],
+            stream=True,
+            on_token=on_token,
+            karakter=karakter,
+            max_tokens=length_meta.get("max_tokens", 280),
+            ollama_predict=length_meta.get("ollama_predict"),
+        )
         raw = response["message"]["content"]
-        result = _parse_model_response(raw, konteks, karakter)
+        result = _parse_model_response(
+            raw,
+            konteks_validasi,
+            karakter,
+            max_chars=length_meta.get("max_chars", 550),
+        )
         cache_set(ctx["cache_key"], (result, status))
         simpan_memori(pesan_user, result["text"], karakter, ctx.get("user_id"))
         _trigger_learning(ctx, pesan_user, result, profile)
@@ -460,20 +505,20 @@ def jawab_shiro_stream(pesan_user, preferred_karakter=None, force_preferred=Fals
 # PARSE RESPONSE
 # ============================================================
 
-def _parse_model_response(raw, konteks, karakter):
+def _parse_model_response(raw, konteks, karakter, max_chars=550):
     profile = CHARACTER_PROFILES[karakter]
     parsed = parse_json_response(raw)
     if parsed:
         teks_layar = parsed.get("teks_layar", "").strip()
         teks_suara = parsed.get("teks_suara", "").strip()
         teks_layar, teks_suara = sync_text_and_voice(teks_layar, teks_suara)
-        if not validasi_respon_teks(teks_layar, konteks):
+        if not validasi_respon_teks(teks_layar, konteks, max_chars=max_chars):
             teks_layar = profile["fallback"]
             teks_suara = teks_layar
         return {"text": teks_layar, "suara": teks_suara, "karakter": karakter}
 
     teks_layar = saring_bahasa_alien(raw, karakter)
-    if not validasi_respon_teks(teks_layar, konteks):
+    if not validasi_respon_teks(teks_layar, konteks, max_chars=max_chars):
         teks_layar = profile["fallback"]
     teks_layar, teks_suara = sync_text_and_voice(teks_layar, teks_layar)
     return {"text": teks_layar, "suara": teks_suara, "karakter": karakter}
@@ -737,15 +782,27 @@ def jawab_shiro(pesan_user, preferred_karakter=None, force_preferred=False):
     karakter = ctx["karakter"]
     status = ctx["status"]
     konteks = ctx["konteks"]
+    konteks_validasi = ctx.get("konteks_validasi", konteks)
     profile = ctx["profile"]
 
     if ctx.get("cached_result"):
         return ctx["cached_result"], muat_status()
 
     try:
-        response = _call_llm(ctx["messages"], karakter=karakter)
+        length_meta = ctx.get("length_meta") or {}
+        response = _call_llm(
+            ctx["messages"],
+            karakter=karakter,
+            max_tokens=length_meta.get("max_tokens", 280),
+            ollama_predict=length_meta.get("ollama_predict"),
+        )
         raw = response["message"]["content"]
-        result = _parse_model_response(raw, konteks, karakter)
+        result = _parse_model_response(
+            raw,
+            konteks_validasi,
+            karakter,
+            max_chars=length_meta.get("max_chars", 550),
+        )
         cache_set(ctx["cache_key"], (result, status))
         simpan_memori(pesan_user, result["text"], karakter, ctx.get("user_id"))
         _trigger_learning(ctx, pesan_user, result, profile)

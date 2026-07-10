@@ -2,20 +2,31 @@
 
 Shiro dan Sishin bisa membuka software, folder, dan file di laptop Anda lewat chat atau suara.
 
+## Desktop Anda (otomatis)
+
+Semua shortcut dan file di **Desktop** terdaftar otomatis (read-only):
+
+- Cursor, Excel, Word, Firefox, VirtualBox, Photopea, dll.
+- File `.txt`, folder, dan shortcut `.lnk`
+- **Shortcut Desktop tidak dipindah atau dihapus** — Shiro hanya membuka lewat Windows (`os.startfile`)
+
+Ucapkan: `buka cursor`, `buka excel`, `buka photopea`, `buka db cukur asgar.txt`
+
 ## Cara menambah software baru (setelah install)
 
-### Opsi 1 — Taruh shortcut (COPY, jangan pindahkan!)
+### Opsi 1 — Biarkan shortcut di Desktop (disarankan)
 
-> **PENTING:** **Jangan pindahkan** shortcut dari Desktop ke sini. **Copy** saja (Ctrl+C → Ctrl+V).  
-> Shiro AI **tidak pernah menghapus** shortcut Desktop — jika shortcut hilang, restore dari Recycle Bin atau buat ulang.
+Cukup biarkan shortcut di Desktop — Shiro/Sishin akan mendeteksinya otomatis.
 
-1. Buka folder **`tambah_di_sini/`** di sini
-2. **Copy** (bukan pindah) shortcut (`.lnk`) aplikasi ke folder itu
-3. Restart server Shiro AI **atau** ketik di chat: `scan ulang aplikasi`
-4. Ucapkan: `buka [nama aplikasi]`
+### Opsi 2 — Copy shortcut ke project (opsional)
 
-### Opsi 2 — Edit JSON
-Edit file **`custom_apps.json`** di folder ini:
+1. Buka folder **`tambah_di_sini/`**
+2. **Copy** (bukan pindah) shortcut `.lnk` ke folder itu
+3. Ketik di chat: `scan ulang aplikasi`
+
+### Opsi 3 — Edit JSON
+
+Edit **`custom_apps.json`**:
 
 ```json
 "nama_app": {
@@ -26,36 +37,31 @@ Edit file **`custom_apps.json`** di folder ini:
 }
 ```
 
-**type** bisa:
-- `app` — program (.exe)
-- `folder` — folder/direktori
-- `file` — dokumen, gambar, video, dll.
-
-### Opsi 3 — Folder untuk di-scan otomatis
-Edit **`app/data/user_paths.json`** — tambahkan path folder di `extra_folders` atau `scan_roots`.
+**type**: `app` | `folder` | `file`
 
 ## Perintah contoh
 
 ```
 buka chrome
 buka cursor
-buka folder documents
-buka file laporan.pdf
+buka excel
+buka photopea
+buka folder voice_shiro
+buka file db cukur asgar.txt
 tolong buka spotify dong
 ```
 
 ## Scan otomatis
 
-Saat server jalan, Shiro AI memindai:
-- Registry aplikasi terpasang (Windows App Paths)
-- Folder `tambah_di_sini/` dan `shortcuts/` **di dalam project saja**
-- Documents, Downloads, dll. (bukan Desktop)
+- **Desktop** (read-only, aman)
+- Registry Windows (App Paths)
+- Start Menu
+- Documents, Downloads (`user_paths.json`)
+- Folder `tambah_di_sini/` di project
 
-**Desktop tidak pernah di-scan atau disentuh** — shortcut Cursor, Chrome, dll. aman.
+Ketik `scan ulang aplikasi` atau `POST /api/voice/rescan` untuk refresh.
 
-Cache scan disimpan lokal (tidak di-commit ke Git).
+## API
 
-## API (opsional)
-
-- `GET /api/voice/apps` — lihat daftar terdeteksi
-- `POST /api/voice/rescan` — paksa scan ulang
+- `GET /api/voice/apps` — daftar terdeteksi
+- `POST /api/voice/rescan` — scan ulang

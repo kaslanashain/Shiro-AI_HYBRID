@@ -87,11 +87,13 @@
     "paths": [
       "%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe",
       "%LOCALAPPDATA%\\Programs\\Cursor\\Cursor.exe",
-      "%LOCALAPPDATA%\\cursor\\Cursor.exe"
+      "%LOCALAPPDATA%\\cursor\\Cursor.exe",
+      "%USERPROFILE%\\AppData\\Local\\Programs\\cursor\\Cursor.exe"
     ],
     "glob_paths": [
       "%LOCALAPPDATA%\\Programs\\cursor\\**\\Cursor.exe",
-      "%LOCALAPPDATA%\\Programs\\Cursor\\**\\Cursor.exe"
+      "%LOCALAPPDATA%\\Programs\\Cursor\\**\\Cursor.exe",
+      "%LOCALAPPDATA%\\**\\Cursor.exe"
     ],
     "aliases": ["cursor ide", "cursor editor", "cursor ai", "kursor", "ide cursor", "kursor ai"]
   },

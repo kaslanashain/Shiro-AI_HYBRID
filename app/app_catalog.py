@@ -39,6 +39,9 @@ _merged_cache: Optional[dict[str, dict[str, Any]]] = None
 _merged_cache_at: float = 0.0
 _launch_registry_cache: Optional[dict[str, dict[str, Any]]] = None
 _launch_registry_at: float = 0.0
+_desktop_cache: Optional[dict[str, dict[str, Any]]] = None
+_desktop_cache_at: float = 0.0
+_DESKTOP_CACHE_TTL_SEC = 300
 
 
 def _expand_path(path: str) -> str:
@@ -92,17 +95,23 @@ def _is_desktop_path(path: str) -> bool:
 
 
 def _is_allowed_shortcut_path(lnk_path: str) -> bool:
-    """Only resolve .lnk inside our user_apps folder — never Desktop/Start Menu."""
+    """Shortcuts in user_apps/ or Desktop (read-only launch via os.startfile)."""
     abs_lnk = os.path.normcase(os.path.abspath(_expand_path(lnk_path)))
-    allowed = os.path.normcase(os.path.abspath(str(_USER_APPS_DIR)))
-    return abs_lnk.startswith(allowed + os.sep) or abs_lnk.startswith(allowed)
+    allowed_user = os.path.normcase(os.path.abspath(str(_USER_APPS_DIR)))
+    if abs_lnk.startswith(allowed_user + os.sep) or abs_lnk.startswith(allowed_user):
+        return True
+    for desktop in _desktop_directories():
+        desk = os.path.normcase(os.path.abspath(desktop))
+        if abs_lnk.startswith(desk + os.sep) or abs_lnk == desk:
+            return True
+    return False
 
 
-def _resolve_lnk(lnk_path: str) -> Optional[str]:
+def _read_lnk_target(lnk_path: str) -> Optional[str]:
+    """Read .lnk target path only — never writes or modifies the shortcut file."""
     if sys.platform != "win32" or not lnk_path.lower().endswith(".lnk"):
         return None
-    if not _is_allowed_shortcut_path(lnk_path):
-        logger.debug("Skip external shortcut (desktop-safe policy): %s", lnk_path)
+    if not os.path.isfile(lnk_path):
         return None
     try:
         escaped = lnk_path.replace("'", "''")
@@ -118,8 +127,36 @@ def _resolve_lnk(lnk_path: str) -> Optional[str]:
         if target and os.path.exists(target):
             return target
     except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.debug("LNK resolve failed for %s: %s", lnk_path, exc)
+        logger.debug("LNK read failed for %s: %s", lnk_path, exc)
     return None
+
+
+def _resolve_lnk(lnk_path: str) -> Optional[str]:
+    if not _is_allowed_shortcut_path(lnk_path):
+        logger.debug("Skip disallowed shortcut path: %s", lnk_path)
+        return None
+    return _read_lnk_target(lnk_path)
+
+
+def _desktop_directories() -> list[str]:
+    """All Desktop folder locations (local, public, OneDrive)."""
+    seen: set[str] = set()
+    dirs: list[str] = []
+    for env in (
+        r"%USERPROFILE%\Desktop",
+        r"%PUBLIC%\Desktop",
+        r"%OneDrive%\Desktop",
+        r"%OneDriveConsumer%\Desktop",
+    ):
+        d = _expand_path(env)
+        if not os.path.isdir(d):
+            continue
+        norm = os.path.normcase(os.path.abspath(d))
+        if norm in seen:
+            continue
+        seen.add(norm)
+        dirs.append(d)
+    return dirs
 
 
 def _entry_from_path(
@@ -190,8 +227,121 @@ def _is_document(path: str) -> bool:
     return ext in {
         ".txt", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
         ".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp3", ".mp4", ".wav",
-        ".zip", ".rar", ".7z", ".csv", ".md", ".json", ".py", ".html",
+        ".zip", ".rar", ".7z", ".csv", ".md", ".json", ".py", ".html", ".jar",
     }
+
+
+def _scan_desktop_readonly(*, force_refresh: bool = False) -> dict[str, dict[str, Any]]:
+    """
+    Index Desktop items read-only — never copy, move, or modify shortcuts.
+    Launch uses os.startfile(.lnk) or direct path; Desktop files stay in place.
+    """
+    global _desktop_cache, _desktop_cache_at
+    now = time.time()
+    if (
+        not force_refresh
+        and _desktop_cache is not None
+        and (now - _desktop_cache_at) < _DESKTOP_CACHE_TTL_SEC
+    ):
+        return _desktop_cache
+
+    out: dict[str, dict[str, Any]] = {}
+    if sys.platform != "win32":
+        _desktop_cache = out
+        _desktop_cache_at = now
+        return out
+
+    seen_labels: set[str] = set()
+
+    for desktop in _desktop_directories():
+        try:
+            names = os.listdir(desktop)
+        except OSError as exc:
+            logger.debug("Cannot list desktop %s: %s", desktop, exc)
+            continue
+
+        for name in names:
+            full = os.path.join(desktop, name)
+            if name.startswith("."):
+                continue
+
+            ext = Path(name).suffix.lower()
+            label = Path(name).stem
+            label_key = label.lower().strip()
+            if not label_key or label_key in seen_labels:
+                continue
+
+            if ext == ".lnk":
+                target = _read_lnk_target(full)
+                key = _slug_key(label, prefix="desk_")
+                while key in out:
+                    key = key + "_2"
+                entry = _entry_from_path(
+                    key,
+                    label,
+                    target or full,
+                    item_type="app",
+                    aliases=[label_key, name.lower()],
+                    source="desktop",
+                )
+                entry["shortcut"] = full
+                if target:
+                    entry["path"] = target
+                else:
+                    entry["use_startfile"] = True
+                out[key] = entry
+                seen_labels.add(label_key)
+                continue
+
+            if ext in (".exe", ".bat", ".cmd", ".msi", ".url"):
+                key = _slug_key(label, prefix="desk_")
+                while key in out:
+                    key = key + "_2"
+                out[key] = _entry_from_path(
+                    key,
+                    label,
+                    full,
+                    item_type="app",
+                    aliases=[label_key, name.lower()],
+                    source="desktop",
+                )
+                out[key]["use_startfile"] = ext in (".bat", ".cmd", ".url")
+                seen_labels.add(label_key)
+                continue
+
+            if os.path.isdir(full):
+                key = _slug_key(label, prefix="deskdir_")
+                while key in out:
+                    key = key + "_2"
+                out[key] = _entry_from_path(
+                    key,
+                    label,
+                    full,
+                    item_type="folder",
+                    aliases=[label_key, f"folder {label_key}"],
+                    source="desktop",
+                )
+                seen_labels.add(label_key)
+                continue
+
+            if os.path.isfile(full) and _is_document(full):
+                key = _slug_key(label, prefix="deskfile_")
+                while key in out:
+                    key = key + "_2"
+                out[key] = _entry_from_path(
+                    key,
+                    name,
+                    full,
+                    item_type="file",
+                    aliases=[label_key, name.lower(), f"file {label_key}"],
+                    source="desktop",
+                )
+                seen_labels.add(label_key)
+
+    _desktop_cache = out
+    _desktop_cache_at = now
+    logger.info("Desktop index (read-only): %d items", len(out))
+    return out
 
 
 def _scan_start_menu() -> dict[str, dict[str, Any]]:
@@ -219,7 +369,7 @@ def _scan_start_menu() -> dict[str, dict[str, Any]]:
                 if not name.lower().endswith(".lnk"):
                     continue
                 full = os.path.join(dirpath, name)
-                target = _resolve_lnk(full)
+                target = _read_lnk_target(full)
                 if not target or target in seen_targets:
                     continue
                 seen_targets.add(target)
@@ -317,8 +467,8 @@ def _index_files_and_folders() -> dict[str, dict[str, Any]]:
 
 def get_launch_registry(*, force_refresh: bool = False) -> dict[str, dict[str, Any]]:
     """
-    Safe app registry for launching — never scans Desktop or external shortcuts.
-    Uses: built-in list + Windows registry + user JSON + shortcuts in user_apps/ only.
+    App registry for launching: built-in + user + registry + Desktop (read-only index).
+  Desktop shortcuts are never moved or deleted — only opened via os.startfile.
     """
     global _launch_registry_cache, _launch_registry_at
     if force_refresh:
@@ -347,9 +497,25 @@ def get_launch_registry(*, force_refresh: bool = False) -> dict[str, dict[str, A
             if key not in merged:
                 merged[key] = entry
 
+    # Desktop last — adds desk_* entries; also fills builtin gaps (e.g. Cursor.lnk)
+    desktop_items = _scan_desktop_readonly(force_refresh=force_refresh)
+    label_to_builtin: dict[str, str] = {}
+    for key, entry in merged.items():
+        lbl = (entry.get("label") or key).lower()
+        label_to_builtin[lbl] = key
+
+    for dkey, dentry in desktop_items.items():
+        merged[dkey] = dentry
+        lbl = (dentry.get("label") or "").lower()
+        if lbl and lbl in label_to_builtin:
+            bkey = label_to_builtin[lbl]
+            bent = merged.get(bkey, {})
+            if not resolve_catalog_path(bent) and resolve_launch_path(dentry):
+                merged[bkey] = {**bent, **dentry, "key": bkey, "source": "desktop+builtin"}
+
     _launch_registry_cache = merged
     _launch_registry_at = now
-    logger.info("Launch registry loaded: %d apps (desktop-safe)", len(merged))
+    logger.info("Launch registry loaded: %d apps (incl. desktop read-only)", len(merged))
     return merged
 
 
@@ -435,6 +601,7 @@ def scan_catalog(*, use_cache: bool = True) -> dict[str, dict[str, Any]]:
         _load_user_json_files(),
         _load_shortcuts_from_dirs(),
         _discovered_from_registry(),
+        _scan_desktop_readonly(),
         _index_files_and_folders(),
     ):
         for key, entry in source_map.items():
@@ -455,10 +622,13 @@ def scan_catalog(*, use_cache: bool = True) -> dict[str, dict[str, Any]]:
 
 def invalidate_catalog_cache() -> None:
     global _merged_cache, _merged_cache_at, _launch_registry_cache, _launch_registry_at
+    global _desktop_cache, _desktop_cache_at
     _merged_cache = None
     _merged_cache_at = 0.0
     _launch_registry_cache = None
     _launch_registry_at = 0.0
+    _desktop_cache = None
+    _desktop_cache_at = 0.0
     try:
         if _CACHE_FILE.is_file():
             _CACHE_FILE.unlink()
@@ -497,6 +667,17 @@ def rescan_catalog() -> dict[str, Any]:
 
 def resolve_catalog_path(entry: dict[str, Any]) -> Optional[str]:
     """Resolve executable or file/folder path from a catalog entry."""
+    shortcut = entry.get("shortcut")
+    if shortcut:
+        sp = _expand_path(str(shortcut))
+        if os.path.isfile(sp):
+            direct = entry.get("path")
+            if direct:
+                dp = _expand_path(direct)
+                if os.path.exists(dp):
+                    return dp
+            return sp
+
     direct = entry.get("path")
     if direct:
         p = _expand_path(direct)
@@ -534,23 +715,46 @@ def resolve_catalog_path(entry: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def resolve_launch_path(entry: dict[str, Any]) -> Optional[str]:
+    """Best launch target — resolved exe/file/folder or Desktop .lnk."""
+    return resolve_catalog_path(entry)
+
+
+def find_desktop_item(query: str) -> tuple[Optional[str], Optional[dict[str, Any]], float]:
+    """Lookup on Desktop only (read-only index)."""
+    registry = _scan_desktop_readonly()
+    key, score = resolve_catalog_key(query, registry)
+    if not key:
+        return None, None, 0.0
+    return key, registry.get(key), score
+
+
 def build_alias_index(registry: dict[str, dict]) -> dict[str, str]:
     index: dict[str, str] = {}
+
+    def _set(alias: str, key: str) -> None:
+        al = (alias or "").lower()
+        if not al:
+            return
+        if key.startswith("desk_") and al in index:
+            return
+        index[al] = key
+
     for key, entry in registry.items():
-        index[key.lower()] = key
-        label = (entry.get("label") or key).lower()
-        index[label] = key
+        _set(key, key)
+        _set(entry.get("label") or key, key)
         for alias in entry.get("aliases") or []:
-            if alias:
-                index[str(alias).lower()] = key
+            _set(str(alias), key)
         path = entry.get("path")
         if path:
             base = os.path.basename(path)
-            stem = os.path.splitext(base)[0].lower()
-            if stem:
-                index[stem] = key
-            if base.lower():
-                index[base.lower()] = key
+            stem = os.path.splitext(base)[0]
+            _set(stem, key)
+            _set(base, key)
+        shortcut = entry.get("shortcut")
+        if shortcut:
+            stem = os.path.splitext(os.path.basename(str(shortcut)))[0]
+            _set(stem, key)
     return index
 
 

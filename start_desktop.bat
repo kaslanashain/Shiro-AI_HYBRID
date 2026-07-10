@@ -32,7 +32,8 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":5000" ^| findstr "LI
 
 echo  [OK] Memulai desktop companion...
 echo  [OK] Icon tray ada di taskbar (kanan bawah)
-echo  [OK] Klik kanan tray: autostart Windows, show/hide, keluar
+echo  [OK] Autostart Windows dipasang otomatis (login + buka laptop)
+echo  [OK] Klik kanan tray: matikan autostart, show/hide, keluar
 echo.
 
 :launch

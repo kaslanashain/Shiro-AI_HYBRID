@@ -39,6 +39,22 @@ class AppState:
     started_server = False
     tray_icon = None
     shutting_down = False
+    _mutex = None
+
+
+def _acquire_single_instance() -> bool:
+    """Cegah dua instance desktop (autostart + manual)."""
+    if sys.platform != "win32":
+        return True
+    import ctypes
+
+    handle = ctypes.windll.kernel32.CreateMutexW(
+        None, True, "Global\\ShiroAI_Desktop_SingleInstance_v1"
+    )
+    if ctypes.windll.kernel32.GetLastError() == 183:
+        return False
+    AppState._mutex = handle
+    return True
 
 
 def _server_up() -> bool:
@@ -128,6 +144,7 @@ def _toggle_autostart(icon, _item):
             autostart.uninstall()
         else:
             autostart.install()
+            autostart.set_user_enabled(True)
     except Exception as exc:
         print(f"[Desktop] Autostart error: {exc}")
 
@@ -290,6 +307,9 @@ class DesktopApi:
 
 
 def main() -> int:
+    if not _acquire_single_instance():
+        return 0
+
     try:
         import webview  # noqa: F401
     except ImportError:
@@ -302,6 +322,13 @@ def main() -> int:
     except ImportError:
         print("pystray/pillow belum terpasang. Jalankan: pip install pystray pillow")
         return 1
+
+    try:
+        from scripts.desktop_autostart import ensure_autostart
+
+        ensure_autostart()
+    except Exception as exc:
+        print(f"[Desktop] Autostart: {exc}")
 
     if not _server_up():
         print("[Desktop] Memulai server Shiro AI...")

@@ -9,5 +9,5 @@
   "extra_folders": [],
   "max_files_per_root": 800,
   "max_depth": 4,
-  "_note": "Desktop sengaja TIDAK di-scan agar shortcut di Desktop tidak terganggu."
+  "_note": "Desktop di-scan read-only (shortcut tidak dipindah). Tambah folder lain di extra_folders jika perlu."
 }

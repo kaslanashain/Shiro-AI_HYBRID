@@ -114,11 +114,14 @@ def call_ollama_offline(
     *,
     stream: bool = False,
     on_token=None,
+    num_predict: int | None = None,
 ) -> dict:
     host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
     client = ollama.Client(host=host)
     model = resolve_ollama_model(karakter)
     options = offline_options()
+    if num_predict is not None:
+        options = {**options, "num_predict": num_predict}
     payload = enrich_offline_messages(messages, karakter)
     keep_alive = config.OLLAMA_KEEP_ALIVE
 

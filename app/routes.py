@@ -756,20 +756,23 @@ def register_routes(app):
     # ============================================================
     @app.route("/api/weather", methods=["GET"])
     def api_weather():
-        """Proxy untuk mengambil data cuaca dari Open-Meteo (server side)"""
-        lat = request.args.get("lat", "-6.2088")    # default Jakarta
+        """Proxy cuaca Open-Meteo — dipakai UI dan konteks Shiro/Sishin."""
+        from app.current_context import fetch_weather
+
+        lat = request.args.get("lat", "-6.2088")
         lon = request.args.get("lon", "106.8456")
         try:
-            url = (
-                f"https://api.open-meteo.com/v1/forecast?"
-                f"latitude={lat}&longitude={lon}&current_weather=true&timezone=Asia/Jakarta"
-            )
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                return jsonify(response.json())
-            else:
-                logger.warning(f"Open-Meteo returned status {response.status_code}")
+            data = fetch_weather(lat=lat, lon=lon)
+            if not data:
                 return jsonify({"error": "Gagal mengambil data cuaca"}), 500
+            return jsonify({
+                "current_weather": {
+                    "temperature": data.get("temperature"),
+                    "weathercode": data.get("weathercode"),
+                    "windspeed": data.get("windspeed"),
+                },
+                "city": data.get("city"),
+            })
         except requests.exceptions.Timeout:
             logger.error("Weather API timeout")
             return jsonify({"error": "Timeout"}), 504

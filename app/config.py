@@ -54,8 +54,8 @@ OLLAMA_OFFLINE_OPTIONS = {
     "temperature": float(os.environ.get("OLLAMA_OFFLINE_TEMP", "0.75")),
     "top_p": float(os.environ.get("OLLAMA_OFFLINE_TOP_P", "0.9")),
     "top_k": int(os.environ.get("OLLAMA_OFFLINE_TOP_K", "40")),
-    # Chat pendek 1-3 kalimat — 160 token cukup, jauh lebih cepat dari 384
-    "num_predict": int(os.environ.get("OLLAMA_OFFLINE_NUM_PREDICT", "160")),
+    # Default medium; mode panjang/pendek diatur runtime via response_length.py
+    "num_predict": int(os.environ.get("OLLAMA_OFFLINE_NUM_PREDICT", "260")),
     "repeat_penalty": float(os.environ.get("OLLAMA_OFFLINE_REPEAT_PENALTY", "1.1")),
     # 8192 ctx sangat berat di CPU; 4096 cukup untuk memori + prompt
     "num_ctx": int(os.environ.get("OLLAMA_NUM_CTX", "4096")),
